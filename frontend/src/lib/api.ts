@@ -508,3 +508,25 @@ export async function getUserInvoices(token: string): Promise<InvoiceRecord[]> {
     return response.json()
 }
 
+export type PlanSlug = 'silver' | 'esmerald' | 'diamond' | 'challenger' | null
+
+export async function adminAssignPlan(
+    token: string,
+    userId: string,
+    plan: PlanSlug
+): Promise<{ plan: PlanSlug; hasPlan: boolean; planActive: boolean }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/plan`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ plan }),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+

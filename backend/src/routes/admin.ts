@@ -242,6 +242,32 @@ router.patch('/users/:userId/topic-status/by-name', authMiddleware, async (req: 
     }
 })
 
+// PATCH /api/admin/users/:userId/plan — asignar o quitar plan manualmente
+router.patch('/users/:userId/plan', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const { plan } = req.body as { plan: string | null }
+        const validPlans = ['silver', 'esmerald', 'diamond', 'challenger', null]
+        if (!validPlans.includes(plan)) {
+            res.status(400).json({ message: 'Plan inválido. Usa: silver, esmerald, diamond, challenger o null' })
+            return
+        }
+        const user = await User.findByIdAndUpdate(
+            req.params.userId,
+            {
+                plan: plan ?? null,
+                hasPlan: plan !== null,
+                planActive: plan !== null,
+            },
+            { new: true, select: 'name email plan hasPlan planActive' }
+        )
+        if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
+        res.json({ plan: user.plan, hasPlan: user.hasPlan, planActive: user.planActive })
+    } catch {
+        res.status(500).json({ message: 'Error interno del servidor' })
+    }
+})
+
 // PATCH /api/admin/users/:userId/topic-status/:topicId — update by subdoc _id
 router.patch('/users/:userId/topic-status/:topicId', authMiddleware, async (req: AuthRequest, res: Response) => {
     if (!requireAdmin(req, res)) return

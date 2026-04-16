@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { adminGetUserProfile, getUserProfile, createCheckoutSession } from '@/lib/api'
+import { adminGetUserProfile, getUserProfile, createCheckoutSession, adminAssignPlan, type PlanSlug } from '@/lib/api'
 
 const PLANS = [
     {
@@ -68,6 +68,8 @@ export default function PaquetesPanel({ adminUserId }: { adminUserId?: string })
     const [adminUserName, setAdminUserName] = useState<string | null>(null)
     const [adminUserPlan, setAdminUserPlan] = useState<string | null>(null)
     const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null)
+    const [assigningPlan, setAssigningPlan] = useState<string | null>(null)
+    const [confirmPlan, setConfirmPlan] = useState<string | null>(null)
 
     useEffect(() => {
         if (!token) return
@@ -192,26 +194,66 @@ export default function PaquetesPanel({ adminUserId }: { adminUserId?: string })
                                 <div className="w-full py-2.5 bg-white/15 text-white font-primary text-[.75rem] font-bold tracking-[2px] uppercase rounded-xl text-center border border-white/20">
                                     ✓ {adminUserId ? 'Paquete del Usuario' : 'Paquete Activo'}
                                 </div>
-                            ) : (
-                                !adminUserId && (
+                            ) : adminUserId ? (
+                                confirmPlan === plan.name ? (
+                                    <div className="flex flex-col gap-2">
+                                        <p className="font-primary text-[.68rem] text-center text-[rgba(255,210,210,.7)]">¿Asignar <strong className="text-white">{plan.name}</strong> a este usuario?</p>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        setAssigningPlan(plan.name)
+                                                        const planSlug = plan.name.toLowerCase().split(' ')[0] as PlanSlug
+                                                        await adminAssignPlan(token, adminUserId, planSlug)
+                                                        setAdminUserPlan(planSlug)
+                                                        setConfirmPlan(null)
+                                                    } catch (err) {
+                                                        console.error('[Admin] Error asignando plan:', err)
+                                                    } finally {
+                                                        setAssigningPlan(null)
+                                                    }
+                                                }}
+                                                disabled={assigningPlan !== null}
+                                                className="flex-1 py-2 bg-linear-to-br from-emerald-600 to-green-500 text-white font-primary text-[.7rem] font-bold tracking-[1px] uppercase rounded-xl hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                            >
+                                                {assigningPlan === plan.name ? 'Asignando...' : 'Confirmar'}
+                                            </button>
+                                            <button
+                                                onClick={() => setConfirmPlan(null)}
+                                                disabled={assigningPlan !== null}
+                                                className="flex-1 py-2 bg-white/10 text-white/70 font-primary text-[.7rem] font-bold tracking-[1px] uppercase rounded-xl hover:bg-white/15 transition-all duration-200 disabled:opacity-60"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
                                     <button
-                                        onClick={async () => {
-                                            try {
-                                                setLoadingPriceId(plan.priceId)
-                                                const url = await createCheckoutSession(token, userId, userEmail, plan.priceId)
-                                                window.location.href = url
-                                            } catch (err) {
-                                                console.error('[Stripe] Error al iniciar el pago:', err)
-                                            } finally {
-                                                setLoadingPriceId(null)
-                                            }
-                                        }}
-                                        disabled={loadingPriceId !== null}
-                                        className="w-full py-2.5 bg-linear-to-br from-red-700 to-red-500 text-white font-primary text-[.75rem] font-bold tracking-[2px] uppercase rounded-xl text-center hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        onClick={() => setConfirmPlan(plan.name)}
+                                        disabled={assigningPlan !== null}
+                                        className="w-full py-2.5 bg-linear-to-br from-emerald-700 to-green-600 text-white font-primary text-[.75rem] font-bold tracking-[2px] uppercase rounded-xl text-center hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
-                                        {loadingPriceId === plan.priceId ? 'Redirigiendo...' : 'Cambiar Paquete'}
+                                        Asignar Plan
                                     </button>
                                 )
+                            ) : (
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            setLoadingPriceId(plan.priceId)
+                                            const url = await createCheckoutSession(token, userId, userEmail, plan.priceId)
+                                            window.location.href = url
+                                        } catch (err) {
+                                            console.error('[Stripe] Error al iniciar el pago:', err)
+                                        } finally {
+                                            setLoadingPriceId(null)
+                                        }
+                                    }}
+                                    disabled={loadingPriceId !== null}
+                                    className="w-full py-2.5 bg-linear-to-br from-red-700 to-red-500 text-white font-primary text-[.75rem] font-bold tracking-[2px] uppercase rounded-xl text-center hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {loadingPriceId === plan.priceId ? 'Redirigiendo...' : 'Cambiar Paquete'}
+                                </button>
                             )}
                         </div>
                     )
