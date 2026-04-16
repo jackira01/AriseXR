@@ -3,7 +3,7 @@ FROM oven/bun:1-alpine AS builder
 WORKDIR /app
 
 COPY package.json bun.lock* ./
-RUN bun install --frozen-lockfile
+RUN bun install
 
 COPY tsconfig.json ./
 COPY src ./src
@@ -20,7 +20,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/bun.lock* ./
 
-RUN bun install --production --frozen-lockfile
+RUN bun install --production
 
 EXPOSE 4000
 
