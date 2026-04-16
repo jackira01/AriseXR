@@ -1,7 +1,0 @@
-{
-    "framework": "nextjs",
-    "rootDirectory": "frontend",
-    "buildCommand": "bun run build",
-    "installCommand": "bun install",
-    "outputDirectory": "frontend/.next"
-}
