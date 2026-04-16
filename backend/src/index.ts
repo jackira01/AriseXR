@@ -2,6 +2,7 @@ import 'dotenv/config'
 import http from 'http'
 import express from 'express'
 import cors from 'cors'
+import morgan from 'morgan'
 import { Server } from 'socket.io'
 import jwt from 'jsonwebtoken'
 import { connectDB } from './config/db.js'
@@ -21,6 +22,7 @@ const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:3000'
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors({ origin: CLIENT_URL, credentials: true }))
+app.use(morgan('dev'))
 
 // Payments router must be mounted BEFORE express.json() so the webhook
 // route can receive the raw request body required for Stripe signature verification
