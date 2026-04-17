@@ -19,8 +19,7 @@ import {
 // ── Plan base por defecto (en una app real vendría del perfil del usuario) ──────────
 const CURRENT_PLAN = {
     name: 'Sin paquete activo',
-    hrsPerWeek: 0,
-    weeks: 4, // periodo de facturación (1 mes)
+    totalHours: 0,
 }
 
 const TOPIC_CATEGORIES = [
@@ -89,8 +88,7 @@ const ALL_TOPICS_FLAT = TOPIC_CATEGORIES.flatMap((cat) =>
 
 // ── Compute last 4 Mon–Sun week buckets from a sessions list ─────────────
 function computeWeekBreakdown(
-    sessions: { date: string; hours: number }[],
-    hrsPerWeek: number
+    sessions: { date: string; hours: number }[]
 ) {
     const today = new Date()
     const dow = today.getDay() // 0=Sun
@@ -113,7 +111,7 @@ function computeWeekBreakdown(
             .filter((s) => { const d = new Date(s.date); return d >= start && d <= end })
             .reduce((acc, s) => acc + s.hours, 0)
 
-        return { label: `Sem ${i + 1} (${fmt(start)}–${fmt(end)})`, done, target: hrsPerWeek }
+        return { label: `Sem ${i + 1} (${fmt(start)}–${fmt(end)})`, done }
     })
 }
 
@@ -174,11 +172,11 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
     }, [openDropdown])
 
     // ── Computed values (admin vs static) ────────────────────────────────
-    const PLAN_CONFIG: Record<string, { name: string; hrsPerWeek: number }> = {
-        silver: { name: 'Silver Pack', hrsPerWeek: 8 },
-        esmerald: { name: 'Esmerald Pack', hrsPerWeek: 12 },
-        diamond: { name: 'Diamond Pack', hrsPerWeek: 18 },
-        challenger: { name: 'Challenger Pack', hrsPerWeek: 25 },
+    const PLAN_CONFIG: Record<string, { name: string; totalHours: number }> = {
+        silver: { name: 'Silver Pack', totalHours: 8 },
+        esmerald: { name: 'Esmerald Pack', totalHours: 12 },
+        diamond: { name: 'Diamond Pack', totalHours: 18 },
+        challenger: { name: 'Challenger Pack', totalHours: 32 },
     }
 
     useEffect(() => {
@@ -216,7 +214,7 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
         ? (PLAN_CONFIG[userProfile.plan] ?? CURRENT_PLAN)
         : CURRENT_PLAN
 
-    const baseHours = (planCfg.hrsPerWeek ?? 0) * 4
+    const baseHours = planCfg.totalHours ?? 0
     const extraHours = userProfile?.additionalHours ?? 0
     const totalHours = baseHours + extraHours
 
@@ -226,7 +224,7 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
 
     const displaySessions = [...userSessions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-    const computedWeeks = computeWeekBreakdown(userSessions, planCfg.hrsPerWeek ?? 0)
+    const computedWeeks = computeWeekBreakdown(userSessions)
 
     // Group sessions by date for the history view
     const groupedSessions: { date: string; totalHours: number; topics: string[] }[] = []
@@ -460,7 +458,7 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
                             <div className="flex items-start justify-between mb-1">
                                 <div>
                                     <span className="font-primary text-[.85rem] font-semibold text-[rgba(255,210,210,.8)]">Horas Completadas</span>
-                                    <p className="font-primary text-[.72rem] text-[rgba(255,210,210,.4)] mt-0.5">{planCfg.name} · {planCfg.hrsPerWeek} hrs/semana</p>
+                                    <p className="font-primary text-[.72rem] text-[rgba(255,210,210,.4)] mt-0.5">{planCfg.name} · {planCfg.totalHours} hrs en total</p>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     {/* Admin action buttons — only visible when admin has selected a user */}
@@ -512,21 +510,15 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
 
                         {/* Weekly breakdown */}
                         <div className="bg-red-950/30 backdrop-blur-sm border border-red-800/20 rounded-2xl p-6 flex flex-col gap-3">
-                            <span className="font-primary text-[.82rem] font-semibold text-[rgba(255,210,210,.8)]">Horas por Semana</span>
-                            {computedWeeks.map((w) => {
-                                const isComplete = w.done >= w.target
-                                return (
-                                    <div key={w.label} className="flex items-center justify-between px-3 py-2 rounded-lg bg-red-950/40 border border-red-800/20 hover:border-red-700/30 transition-colors">
-                                        <span className="font-primary text-[.75rem] text-[rgba(255,210,210,.6)]">{w.label}</span>
-                                        <div className="flex items-center gap-3">
-                                            <span className={`font-primary text-[.78rem] font-bold ${isComplete ? 'text-green-400' : 'text-red-400'}`}>
-                                                {w.done}/{w.target}h
-                                            </span>
-                                            <span className={`w-2 h-2 rounded-full shrink-0 ${isComplete ? 'bg-green-400' : 'bg-red-400'}`} />
-                                        </div>
-                                    </div>
-                                )
-                            })}
+                            <span className="font-primary text-[.82rem] font-semibold text-[rgba(255,210,210,.8)]">Actividad Semanal</span>
+                            {computedWeeks.map((w) => (
+                                <div key={w.label} className="flex items-center justify-between px-3 py-2 rounded-lg bg-red-950/40 border border-red-800/20 hover:border-red-700/30 transition-colors">
+                                    <span className="font-primary text-[.75rem] text-[rgba(255,210,210,.6)]">{w.label}</span>
+                                    <span className={`font-primary text-[.78rem] font-bold ${w.done > 0 ? 'text-rose-400' : 'text-[rgba(255,210,210,.3)]'}`}>
+                                        {w.done}h
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
@@ -795,8 +787,8 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
                                                 onClick={() => addTopic(t.name)}
                                                 disabled={selectedTopics.includes(t.name)}
                                                 className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors border-b border-red-800/20 last:border-0 ${selectedTopics.includes(t.name)
-                                                        ? 'opacity-40 cursor-not-allowed'
-                                                        : 'hover:bg-red-900/25'
+                                                    ? 'opacity-40 cursor-not-allowed'
+                                                    : 'hover:bg-red-900/25'
                                                     }`}
                                             >
                                                 <div>

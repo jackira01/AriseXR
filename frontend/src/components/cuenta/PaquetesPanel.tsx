@@ -7,12 +7,12 @@ import { adminGetUserProfile, getUserProfile, createCheckoutSession, adminAssign
 const PLANS = [
     {
         name: 'Silver Pack',
-        price: '200 USD',
+        price: '$4,800 MX',
         highlight: false,
         current: false,
         rankImg: '/ranks/silver.webp',
         rankGlow: '#90a4ae',
-        detail1: '8 hrs / semana',
+        detail1: '8 hrs en total',
         detail2: '5 games',
         detail3: '6 – 8 temas',
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_SILVER ?? '',
@@ -20,12 +20,12 @@ const PLANS = [
     },
     {
         name: 'Esmerald Pack',
-        price: '300 USD',
+        price: '$7,200 MX',
         highlight: false,
         current: false,
         rankImg: '/ranks/emerald.png',
         rankGlow: '#3dba6a',
-        detail1: '12 hrs / semana',
+        detail1: '12 hrs en total',
         detail2: '10 games',
         detail3: '8 – 10 temas',
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ESMERALD ?? '',
@@ -33,12 +33,12 @@ const PLANS = [
     },
     {
         name: 'Diamond Pack',
-        price: '500 USD',
+        price: '$11,500 MX',
         highlight: true,
         current: true,
         rankImg: '/ranks/diamond.png',
         rankGlow: '#4a9ee0',
-        detail1: '18 hrs / semana',
+        detail1: '18 hrs en total',
         detail2: '15 games',
         detail3: '9 – 10 temas',
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_DIAMOND ?? '',
@@ -46,12 +46,12 @@ const PLANS = [
     },
     {
         name: 'Chall Pack',
-        price: '800 USD',
+        price: '$15,900 MX',
         highlight: false,
         current: false,
         rankImg: '/ranks/challenger.png',
         rankGlow: '#ffd600',
-        detail1: '32 hrs / semana',
+        detail1: '32 hrs en total',
         detail2: '20 games',
         detail3: '12 – 14 temas',
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_CHALLENGER ?? '',
@@ -64,12 +64,15 @@ export default function PaquetesPanel({ adminUserId }: { adminUserId?: string })
     const token = (session as { accessToken?: string } | null)?.accessToken ?? ''
     const userId = (session?.user as { id?: string } | undefined)?.id ?? ''
     const userEmail = session?.user?.email ?? ''
+    const isAdmin = (session?.user as { role?: string } | undefined)?.role === 'admin'
 
     const [adminUserName, setAdminUserName] = useState<string | null>(null)
     const [adminUserPlan, setAdminUserPlan] = useState<string | null>(null)
     const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null)
     const [assigningPlan, setAssigningPlan] = useState<string | null>(null)
+    const [assigningClose, setAssigningClose] = useState(false)
     const [confirmPlan, setConfirmPlan] = useState<string | null>(null)
+    const [confirmClose, setConfirmClose] = useState(false)
 
     useEffect(() => {
         if (!token) return
@@ -127,7 +130,51 @@ export default function PaquetesPanel({ adminUserId }: { adminUserId?: string })
                             ))}
                         </div>
                     </div>
-                    <span className="font-primary text-[1.8rem] font-black text-white shrink-0">{currentPlan.price}</span>
+                    <div className="flex flex-col items-end gap-3 shrink-0">
+                        <span className="font-primary text-[1.8rem] font-black text-white">{currentPlan.price}</span>
+                        {adminUserId && (
+                            confirmClose ? (
+                                <div className="flex flex-col gap-2 items-end">
+                                    <p className="font-primary text-[.68rem] text-right text-[rgba(255,210,210,.7)]">¿Cerrar la orden activa del usuario?</p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    setAssigningClose(true)
+                                                    await adminAssignPlan(token, adminUserId, null)
+                                                    setAdminUserPlan(null)
+                                                    setConfirmClose(false)
+                                                } catch (err) {
+                                                    console.error('[Admin] Error cerrando orden:', err)
+                                                } finally {
+                                                    setAssigningClose(false)
+                                                }
+                                            }}
+                                            disabled={assigningClose}
+                                            className="px-4 py-1.5 bg-linear-to-br from-red-700 to-red-500 text-white font-primary text-[.68rem] font-bold tracking-[1px] uppercase rounded-xl hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        >
+                                            {assigningClose ? 'Cerrando...' : 'Confirmar'}
+                                        </button>
+                                        <button
+                                            onClick={() => setConfirmClose(false)}
+                                            disabled={assigningClose}
+                                            className="px-4 py-1.5 bg-white/10 text-white/70 font-primary text-[.68rem] font-bold tracking-[1px] uppercase rounded-xl hover:bg-white/15 transition-all duration-200 disabled:opacity-60"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setConfirmClose(true)}
+                                    disabled={assigningClose || assigningPlan !== null}
+                                    className="px-5 py-2 bg-red-900/60 border border-red-600/40 text-red-300 font-primary text-[.72rem] font-bold tracking-[2px] uppercase rounded-xl hover:bg-red-800/60 hover:text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    Cerrar Orden
+                                </button>
+                            )
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -230,12 +277,16 @@ export default function PaquetesPanel({ adminUserId }: { adminUserId?: string })
                                 ) : (
                                     <button
                                         onClick={() => setConfirmPlan(plan.name)}
-                                        disabled={assigningPlan !== null}
+                                        disabled={assigningPlan !== null || assigningClose}
                                         className="w-full py-2.5 bg-linear-to-br from-emerald-700 to-green-600 text-white font-primary text-[.75rem] font-bold tracking-[2px] uppercase rounded-xl text-center hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
-                                        Asignar Plan
+                                        Cambiar
                                     </button>
                                 )
+                            ) : isAdmin ? (
+                                <div className="w-full py-2.5 bg-white/5 text-[rgba(255,210,210,.35)] font-primary text-[.7rem] tracking-[1px] uppercase rounded-xl text-center border border-white/10 cursor-not-allowed">
+                                    Selecciona un usuario
+                                </div>
                             ) : (
                                 <button
                                     onClick={async () => {
@@ -252,7 +303,7 @@ export default function PaquetesPanel({ adminUserId }: { adminUserId?: string })
                                     disabled={loadingPriceId !== null}
                                     className="w-full py-2.5 bg-linear-to-br from-red-700 to-red-500 text-white font-primary text-[.75rem] font-bold tracking-[2px] uppercase rounded-xl text-center hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    {loadingPriceId === plan.priceId ? 'Redirigiendo...' : 'Cambiar Paquete'}
+                                    {loadingPriceId === plan.priceId ? 'Redirigiendo...' : 'Comprar Paquete'}
                                 </button>
                             )}
                         </div>
