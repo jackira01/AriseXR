@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import {
     adminGetUserProfile,
@@ -12,6 +12,8 @@ import {
     adminUpsertTopicStatus,
     adminUpdateSession,
     adminDeleteSession,
+    getTopicsCatalog,
+    type CatalogCategory,
     type UserProfile,
     type UserSession,
 } from '@/lib/api'
@@ -22,69 +24,9 @@ const CURRENT_PLAN = {
     totalHours: 0,
 }
 
-const TOPIC_CATEGORIES = [
-    {
-        title: 'Mentalidad y Control Emocional',
-        topics: [
-            { name: 'Cómo dejar el tilt', status: 'pendiente' },
-            { name: 'Mentalidad para rankeds', status: 'pendiente' },
-            { name: 'Control emocional en partidas perdidas', status: 'pendiente' },
-            { name: 'Cómo no rendirse (mentalidad comeback)', status: 'pendiente' },
-            { name: 'Manejo de la frustración', status: 'pendiente' },
-            { name: 'Confianza en tus decisiones', status: 'pendiente' },
-            { name: 'Evitar el autosabotaje', status: 'pendiente' },
-            { name: 'Cómo jugar bajo presión', status: 'pendiente' },
-            { name: 'Mentalidad de mejora continua', status: 'pendiente' },
-            { name: 'Cómo aprender de tus derrotas', status: 'pendiente' },
-        ],
-    },
-    {
-        title: 'Macro Game',
-        topics: [
-            { name: 'Cuándo hacer objetivos (dragón, barón)', status: 'pendiente' },
-            { name: 'Rotaciones eficientes', status: 'pendiente' },
-            { name: 'Control de visión (wards)', status: 'pendiente' },
-            { name: 'Prioridad de líneas', status: 'pendiente' },
-            { name: 'Cómo cerrar partidas', status: 'pendiente' },
-            { name: 'Shotcalling básico', status: 'pendiente' },
-            { name: 'Cómo jugar con ventaja', status: 'pendiente' },
-            { name: 'Cómo jugar desde atrás', status: 'pendiente' },
-        ],
-    },
-    {
-        title: 'Micro Game y Mecánicas',
-        topics: [
-            { name: 'Trading en línea', status: 'pendiente' },
-            { name: 'Farming (CS perfecto)', status: 'pendiente' },
-            { name: 'Uso correcto de habilidades', status: 'pendiente' },
-            { name: 'Posicionamiento en teamfights', status: 'pendiente' },
-            { name: 'Uso de summoners', status: 'pendiente' },
-            { name: 'Cómo kitear correctamente', status: 'pendiente' },
-            { name: 'Mecánicas por rol', status: 'pendiente' },
-            { name: 'Dominio del champion pool', status: 'pendiente' },
-        ],
-    },
-    {
-        title: 'Estrategia de Ranked',
-        topics: [
-            { name: 'Win conditions', status: 'pendiente' },
-            { name: 'Errores comunes por elo', status: 'pendiente' },
-            { name: 'Cómo carrear partidas', status: 'pendiente' },
-            { name: 'Importancia del champion pool', status: 'pendiente' },
-            { name: 'Dodge inteligente', status: 'pendiente' },
-            { name: 'Zonas de control', status: 'pendiente' },
-            { name: 'Jugar solo vs dúo', status: 'pendiente' },
-            { name: 'Cómo impactar el mapa', status: 'pendiente' },
-        ],
-    },
-]
+
 
 type TopicStatus = 'completado' | 'en-progreso' | 'pendiente'
-
-// ── Flat list of all topics for search ───────────────────────────────────
-const ALL_TOPICS_FLAT = TOPIC_CATEGORIES.flatMap((cat) =>
-    cat.topics.map((t) => ({ name: t.name, category: cat.title }))
-)
 
 // ── Compute last 4 Mon–Sun week buckets from a sessions list ─────────────
 function computeWeekBreakdown(
@@ -128,7 +70,23 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
     const { data: session } = useSession()
     const token = (session as { accessToken?: string } | null)?.accessToken ?? ''
     const isAdmin = (session?.user as { role?: string } | undefined)?.role === 'admin'
+    // ── Topic catalog (loaded from DB) ──────────────────────────────────
+    const [catalog, setCatalog] = useState<CatalogCategory[]>([])
 
+    const loadCatalog = useCallback(async () => {
+        if (!token) return
+        try {
+            const data = await getTopicsCatalog(token)
+            setCatalog(data)
+        } catch { /* silently ignore */ }
+    }, [token])
+
+    useEffect(() => { loadCatalog() }, [loadCatalog])
+
+    // Flat list derived from live catalog (used for topic search in modal)
+    const allTopicsFlat = catalog.flatMap((cat) =>
+        cat.topics.map((t) => ({ name: t.name, category: cat.name }))
+    )
     // ── Admin state ──────────────────────────────────────────────────────
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
     const [userSessions, setUserSessions] = useState<UserSession[]>([])
@@ -176,7 +134,7 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
         silver: { name: 'Silver Pack', totalHours: 8 },
         esmerald: { name: 'Esmerald Pack', totalHours: 12 },
         diamond: { name: 'Diamond Pack', totalHours: 18 },
-        challenger: { name: 'Challenger Pack', totalHours: 32 },
+        challenger: { name: 'Chall Pack', totalHours: 32 },
     }
 
     useEffect(() => {
@@ -256,7 +214,7 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
         const q = normalize(topicSearch.trim())
         if (!q) { setTopicSearchResults([]); return }
         setTopicSearchResults(
-            ALL_TOPICS_FLAT.filter((t) => normalize(t.name).includes(q))
+            allTopicsFlat.filter((t) => normalize(t.name).includes(q))
         )
     }
 
@@ -581,25 +539,20 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
                     <div>
                         <h3 className="font-primary text-[.72rem] uppercase tracking-[3px] text-[rgba(255,210,210,.4)] mb-4">Temas</h3>
                         {(() => {
-                            // Build category list — always use TOPIC_CATEGORIES as base.
-                            // In admin mode: overlay real user statuses/_ids; unmodified topics default to 'pendiente'.
-                            // In normal (non-admin) mode: show static statuses as-is.
+                            // Build category list from the live catalog fetched from the DB.
+                            // Overlay real user statuses/_ids; topics not yet assigned default to 'pendiente'.
                             const userTopicsMap = new Map(
                                 (userProfile?.topics ?? []).map((t) => [t.name, t])
                             )
                             const displayCategories: { title: string; topics: { _id?: string; name: string; status: string }[] }[] =
-                                TOPIC_CATEGORIES.map((cat) => ({
-                                    title: cat.title,
-                                    topics: cat.topics.map((staticTopic) => {
-                                        const userTopic = userTopicsMap.get(staticTopic.name)
+                                catalog.map((cat) => ({
+                                    title: cat.name,
+                                    topics: cat.topics.map((catalogTopic) => {
+                                        const userTopic = userTopicsMap.get(catalogTopic.name)
                                         return {
                                             _id: userTopic?._id,
-                                            name: staticTopic.name,
-                                            // Admin mode: only show real saved status; unsaved topics are always 'pendiente'
-                                            // Normal mode: use static fallback status for display
-                                            status: adminUserId
-                                                ? (userTopic?.status ?? 'pendiente')
-                                                : (userTopic?.status ?? staticTopic.status),
+                                            name: catalogTopic.name,
+                                            status: userTopic?.status ?? 'pendiente',
                                         }
                                     }),
                                 }))
