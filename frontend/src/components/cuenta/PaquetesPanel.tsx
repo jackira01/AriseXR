@@ -97,7 +97,7 @@ export default function PaquetesPanel({ adminUserId }: { adminUserId?: string })
 
     // The user's active plan
     const currentPlan = PLANS.find((p) =>
-        adminUserPlan ? p.name.toLowerCase().startsWith(adminUserPlan.toLowerCase()) : false
+        adminUserPlan ? p.slug === adminUserPlan : false
     )
 
     return (
@@ -186,7 +186,7 @@ export default function PaquetesPanel({ adminUserId }: { adminUserId?: string })
             {/* Plan cards grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
                 {PLANS.map((plan) => {
-                    const isCurrent = adminUserPlan ? plan.name.toLowerCase().startsWith(adminUserPlan.toLowerCase()) : false
+                    const isCurrent = adminUserPlan ? plan.slug === adminUserPlan : false
                     return (
                         <div
                             key={plan.name}
