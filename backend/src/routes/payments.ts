@@ -13,7 +13,7 @@ const PLAN_LABELS: Record<string, string> = {
     silver: 'Silver Pack',
     esmerald: 'Esmerald Pack',
     diamond: 'Diamond Pack',
-    challenger: 'Challenger Pack',
+    challenger: 'Chall Pack',
 }
 
 function buildPricePlanMap(): Record<string, string> {
