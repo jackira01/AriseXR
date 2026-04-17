@@ -7,6 +7,7 @@ import { adminGetUserProfile, getUserProfile, createCheckoutSession, adminAssign
 const PLANS = [
     {
         name: 'Silver Pack',
+        slug: 'silver' as PlanSlug,
         price: '$4,800 MX',
         highlight: false,
         current: false,
@@ -20,6 +21,7 @@ const PLANS = [
     },
     {
         name: 'Esmerald Pack',
+        slug: 'esmerald' as PlanSlug,
         price: '$7,200 MX',
         highlight: false,
         current: false,
@@ -33,6 +35,7 @@ const PLANS = [
     },
     {
         name: 'Diamond Pack',
+        slug: 'diamond' as PlanSlug,
         price: '$11,500 MX',
         highlight: true,
         current: true,
@@ -46,6 +49,7 @@ const PLANS = [
     },
     {
         name: 'Chall Pack',
+        slug: 'challenger' as PlanSlug,
         price: '$15,900 MX',
         highlight: false,
         current: false,
@@ -73,6 +77,7 @@ export default function PaquetesPanel({ adminUserId }: { adminUserId?: string })
     const [assigningClose, setAssigningClose] = useState(false)
     const [confirmPlan, setConfirmPlan] = useState<string | null>(null)
     const [confirmClose, setConfirmClose] = useState(false)
+    const [assignError, setAssignError] = useState<string | null>(null)
 
     useEffect(() => {
         if (!token) return
@@ -245,17 +250,21 @@ export default function PaquetesPanel({ adminUserId }: { adminUserId?: string })
                                 confirmPlan === plan.name ? (
                                     <div className="flex flex-col gap-2">
                                         <p className="font-primary text-[.68rem] text-center text-[rgba(255,210,210,.7)]">¿Asignar <strong className="text-white">{plan.name}</strong> a este usuario?</p>
+                                        {assignError && (
+                                            <p className="font-primary text-[.65rem] text-center text-red-400">{assignError}</p>
+                                        )}
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={async () => {
                                                     try {
                                                         setAssigningPlan(plan.name)
-                                                        const planSlug = plan.name.toLowerCase().split(' ')[0] as PlanSlug
-                                                        await adminAssignPlan(token, adminUserId, planSlug)
-                                                        setAdminUserPlan(planSlug)
+                                                        setAssignError(null)
+                                                        await adminAssignPlan(token, adminUserId, plan.slug)
+                                                        setAdminUserPlan(plan.slug)
                                                         setConfirmPlan(null)
                                                     } catch (err) {
                                                         console.error('[Admin] Error asignando plan:', err)
+                                                        setAssignError(err instanceof Error ? err.message : 'Error al asignar el plan')
                                                     } finally {
                                                         setAssigningPlan(null)
                                                     }
