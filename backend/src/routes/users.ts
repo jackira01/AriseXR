@@ -50,4 +50,36 @@ router.patch(
     }
 )
 
+// PATCH /api/users/me/tareas/:tareaId — usuario actualiza el estado de su tarea
+router.patch(
+    '/me/tareas/:tareaId',
+    authMiddleware,
+    async (req: AuthRequest, res: Response) => {
+        const { estado } = req.body as { estado?: string }
+        const validEstados = ['pendiente', 'completada']
+        if (!estado || !validEstados.includes(estado)) {
+            res.status(400).json({ message: 'Estado inválido. Usa: pendiente o completada' })
+            return
+        }
+        try {
+            const user = await User.findById(req.userId)
+            if (!user) {
+                res.status(404).json({ message: 'Usuario no encontrado' })
+                return
+            }
+            const tarea = (user.tareas as unknown as Array<{ _id: { toString(): string }; estado: string }>)
+                .find((t) => t._id.toString() === req.params.tareaId)
+            if (!tarea) {
+                res.status(404).json({ message: 'Tarea no encontrada' })
+                return
+            }
+            tarea.estado = estado
+            await user.save()
+            res.json({ tareas: user.tareas })
+        } catch {
+            res.status(500).json({ message: 'Error interno del servidor' })
+        }
+    }
+)
+
 export default router

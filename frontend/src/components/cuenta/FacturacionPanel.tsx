@@ -20,7 +20,7 @@ function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: '2-digit' })
 }
 
-export default function FacturacionPanel({ adminUserId }: { adminUserId?: string }) {
+export default function FacturacionPanel({ adminUserId, selectedUserName, selectedUserEmail }: { adminUserId?: string; selectedUserName?: string; selectedUserEmail?: string }) {
     const { data: session } = useSession()
     const token = (session as { accessToken?: string } | null)?.accessToken ?? ''
     const isAdmin = (session?.user as { role?: string } | undefined)?.role === 'admin'
@@ -57,15 +57,29 @@ export default function FacturacionPanel({ adminUserId }: { adminUserId?: string
 
     return (
         <div className="flex flex-col gap-8">
-            {/* Header */}
-            <div>
-                <div className="flex items-center gap-3 font-primary text-[.7rem] tracking-[4px] uppercase text-red-500 mb-2">
-                    <span className="w-5 h-px bg-red-500 inline-block" />
-                    Facturación
+            {/* Header with banner on the right */}
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <div className="flex items-center gap-3 font-primary text-[.7rem] tracking-[4px] uppercase text-red-500 mb-2">
+                        <span className="w-5 h-px bg-red-500 inline-block" />
+                        Facturación
+                    </div>
+                    <h2 className="font-serif text-2xl font-bold uppercase text-[#fff0f0]">
+                        {adminUserId ? 'Facturas del Usuario' : 'Tus Facturas'}
+                    </h2>
                 </div>
-                <h2 className="font-serif text-2xl font-bold uppercase text-[#fff0f0]">
-                    {adminUserId ? 'Facturas del Usuario' : 'Tus Facturas'}
-                </h2>
+                {/* Banner usuario seleccionado */}
+                {adminUserId && selectedUserName && (
+                    <div className="flex items-center gap-3 bg-red-950/40 border border-red-700/30 rounded-xl px-5 py-3 shrink-0">
+                        <svg className="w-4 h-4 text-red-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A9 9 0 1118.88 6.196M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <div className="flex flex-col">
+                            <span className="font-primary font-semibold text-[.88rem] text-[#fff0f0] leading-tight">{selectedUserName}</span>
+                            {selectedUserEmail && <span className="font-primary text-[.73rem] text-[rgba(255,210,210,.5)] leading-tight">{selectedUserEmail}</span>}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Admin sin usuario seleccionado */}

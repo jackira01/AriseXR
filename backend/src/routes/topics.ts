@@ -18,8 +18,8 @@ function requireAdmin(req: AuthRequest, res: Response): boolean {
 // GET /api/topics/categories  — list all categories with their topics
 router.get('/categories', authMiddleware, async (req: AuthRequest, res: Response) => {
     try {
-        const categories = await Category.find().sort({ name: 1 }).lean()
-        const topics = await Topic.find().sort({ name: 1 }).lean()
+        const categories = await Category.find().sort({ createdAt: -1 }).lean()
+        const topics = await Topic.find().sort({ createdAt: -1 }).lean()
 
         const result = categories.map((cat) => ({
             ...cat,

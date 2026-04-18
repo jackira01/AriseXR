@@ -18,6 +18,14 @@ export interface IInvoice {
     status: 'Pagado' | 'Pendiente' | 'Procesando'
 }
 
+export interface ITarea {
+    _id?: string
+    titulo: string
+    texto: string
+    fechaCreacion: Date
+    estado: 'pendiente' | 'completada'
+}
+
 export interface IUser extends Document {
     name: string
     email: string
@@ -38,6 +46,7 @@ export interface IUser extends Document {
         status: 'pendiente' | 'en-progreso' | 'completado'
     }[]
     invoices: IInvoice[]
+    tareas: ITarea[]
     createdAt: Date
     comparePassword(candidate: string): Promise<boolean>
 }
@@ -70,6 +79,17 @@ const InvoiceSchema = new Schema({
         type: String,
         enum: ['Pagado', 'Pendiente', 'Procesando'],
         default: 'Pendiente',
+    },
+})
+
+const TareaSchema = new Schema({
+    titulo: { type: String, required: true, trim: true, maxlength: 300 },
+    texto: { type: String, default: '', trim: true, maxlength: 300 },
+    fechaCreacion: { type: Date, default: Date.now },
+    estado: {
+        type: String,
+        enum: ['pendiente', 'completada'],
+        default: 'pendiente',
     },
 })
 
@@ -108,6 +128,7 @@ const UserSchema = new Schema<IUser>(
         additionalHours: { type: Number, default: 0 },
         sessions: { type: [SessionSchema], default: [] },
         invoices: { type: [InvoiceSchema], default: [] },
+        tareas: { type: [TareaSchema], default: [] },
     },
     { timestamps: true }
 )

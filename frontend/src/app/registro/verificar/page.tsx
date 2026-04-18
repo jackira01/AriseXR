@@ -161,6 +161,9 @@ function VerificarContent() {
                             Hemos enviado un código de 6 dígitos a{' '}
                             <span className="text-red-400">{email}</span>
                         </p>
+                        <p className="font-primary text-[.8rem] text-[rgba(255,200,150,.6)] mt-4 px-3 py-2 bg-amber-900/20 border border-amber-800/30 rounded-lg leading-relaxed">
+                            ⚠️ Si no ves el código, revisa tu carpeta de <strong>spam</strong> o <strong>promociones</strong>. A veces nuestros correos llegan allí por error.
+                        </p>
                     </div>
 
                     <div className="bg-red-950/30 backdrop-blur-sm border border-red-800/20 rounded-2xl p-8 flex flex-col gap-6">

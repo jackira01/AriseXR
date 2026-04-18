@@ -268,6 +268,67 @@ router.patch('/users/:userId/plan', authMiddleware, async (req: AuthRequest, res
     }
 })
 
+// POST /api/admin/users/:userId/tareas — crear tarea
+router.post('/users/:userId/tareas', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const { titulo, texto } = req.body as { titulo?: string; texto?: string }
+        if (!titulo?.trim()) { res.status(400).json({ message: 'El título de la tarea es requerido' }); return }
+        if (titulo.trim().length > 300) { res.status(400).json({ message: 'El título no puede superar los 300 caracteres' }); return }
+        if (texto && texto.trim().length > 300) { res.status(400).json({ message: 'La descripción no puede superar los 300 caracteres' }); return }
+        const user = await User.findById(req.params.userId)
+        if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
+        user.tareas.push({ titulo: titulo.trim(), texto: texto?.trim() ?? '', fechaCreacion: new Date(), estado: 'pendiente' } as any)
+        await user.save()
+        res.status(201).json({ tareas: user.tareas })
+    } catch {
+        res.status(500).json({ message: 'Error interno del servidor' })
+    }
+})
+
+// PATCH /api/admin/users/:userId/tareas/:tareaId — editar título, texto y/o estado
+router.patch('/users/:userId/tareas/:tareaId', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const { titulo, texto, estado } = req.body as { titulo?: string; texto?: string; estado?: string }
+        const validEstados = ['pendiente', 'completada']
+        if (estado !== undefined && !validEstados.includes(estado)) {
+            res.status(400).json({ message: 'Estado inválido. Usa: pendiente o completada' }); return
+        }
+        if (titulo !== undefined && titulo.trim().length > 300) { res.status(400).json({ message: 'El título no puede superar los 300 caracteres' }); return }
+        if (texto !== undefined && texto.trim().length > 300) { res.status(400).json({ message: 'La descripción no puede superar los 300 caracteres' }); return }
+        const user = await User.findById(req.params.userId)
+        if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
+        const tarea = (user.tareas as unknown as Array<{ _id: { toString(): string }; titulo: string; texto: string; estado: string }>)
+            .find((t) => t._id.toString() === req.params.tareaId)
+        if (!tarea) { res.status(404).json({ message: 'Tarea no encontrada' }); return }
+        if (titulo?.trim()) tarea.titulo = titulo.trim()
+        if (texto !== undefined) tarea.texto = texto.trim()
+        if (estado) tarea.estado = estado
+        await user.save()
+        res.json({ tareas: user.tareas })
+    } catch {
+        res.status(500).json({ message: 'Error interno del servidor' })
+    }
+})
+
+// DELETE /api/admin/users/:userId/tareas/:tareaId — eliminar tarea
+router.delete('/users/:userId/tareas/:tareaId', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const user = await User.findById(req.params.userId)
+        if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
+        const idx = (user.tareas as unknown as Array<{ _id: { toString(): string } }>)
+            .findIndex((t) => t._id.toString() === req.params.tareaId)
+        if (idx === -1) { res.status(404).json({ message: 'Tarea no encontrada' }); return }
+        user.tareas.splice(idx, 1)
+        await user.save()
+        res.json({ tareas: user.tareas })
+    } catch {
+        res.status(500).json({ message: 'Error interno del servidor' })
+    }
+})
+
 // PATCH /api/admin/users/:userId/topic-status/:topicId — update by subdoc _id
 router.patch('/users/:userId/topic-status/:topicId', authMiddleware, async (req: AuthRequest, res: Response) => {
     if (!requireAdmin(req, res)) return

@@ -19,6 +19,14 @@ export interface UserSession {
     addedAt?: string
 }
 
+export interface ITarea {
+    _id?: string
+    titulo: string
+    texto: string
+    fechaCreacion: string
+    estado: 'pendiente' | 'completada'
+}
+
 export interface UserProfile extends AdminUserSummary {
     role?: 'user' | 'admin'
     plan?: 'silver' | 'esmerald' | 'diamond' | 'challenger' | null
@@ -32,6 +40,7 @@ export interface UserProfile extends AdminUserSummary {
     }>
     createdAt?: string
     updatedAt?: string
+    tareas?: ITarea[]
 }
 
 const API_BASE = '/api'
@@ -427,6 +436,76 @@ export async function adminAddTopicToUser(
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ topicId }),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+// ── Tareas ────────────────────────────────────────────────────────────────────
+
+export async function adminCreateTarea(
+    token: string,
+    userId: string,
+    payload: { titulo: string; texto?: string }
+): Promise<{ tareas: ITarea[] }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/tareas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+export async function adminUpdateTarea(
+    token: string,
+    userId: string,
+    tareaId: string,
+    payload: { titulo?: string; texto?: string; estado?: 'pendiente' | 'completada' }
+): Promise<{ tareas: ITarea[] }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/tareas/${tareaId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+export async function adminDeleteTarea(
+    token: string,
+    userId: string,
+    tareaId: string
+): Promise<{ tareas: ITarea[] }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/tareas/${tareaId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+export async function updateMiTarea(
+    token: string,
+    tareaId: string,
+    estado: 'pendiente' | 'completada'
+): Promise<{ tareas: ITarea[] }> {
+    const response = await fetch(`${API_BASE}/users/me/tareas/${tareaId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ estado }),
     })
     if (!response.ok) {
         const err = await response.json().catch(() => ({})) as { message?: string }

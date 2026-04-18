@@ -13,9 +13,14 @@ import {
     adminUpdateSession,
     adminDeleteSession,
     getTopicsCatalog,
+    adminCreateTarea,
+    adminUpdateTarea,
+    adminDeleteTarea,
+    updateMiTarea,
     type CatalogCategory,
     type UserProfile,
     type UserSession,
+    type ITarea,
 } from '@/lib/api'
 
 // ── Plan base por defecto (en una app real vendría del perfil del usuario) ──────────
@@ -66,7 +71,12 @@ const STATUS_CONFIG: Record<string, { label: string; cls: string; dot: string; s
 // Status cycle order for topic edit mode
 const STATUS_CYCLE: TopicStatus[] = ['pendiente', 'en-progreso', 'completado']
 
-export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string }) {
+const TAREA_STATUS_CONFIG: Record<string, { label: string; cls: string; dot: string }> = {
+    completada: { label: 'Completada', cls: 'bg-green-500/15 text-green-400 border-green-500/30', dot: 'bg-green-400' },
+    pendiente: { label: 'Pendiente', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/25', dot: 'bg-amber-400' },
+}
+
+export default function SeguimientoPanel({ adminUserId, selectedUserName, selectedUserEmail }: { adminUserId?: string; selectedUserName?: string; selectedUserEmail?: string }) {
     const { data: session } = useSession()
     const token = (session as { accessToken?: string } | null)?.accessToken ?? ''
     const isAdmin = (session?.user as { role?: string } | undefined)?.role === 'admin'
@@ -121,13 +131,23 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
     const [editFormError, setEditFormError] = useState('')
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
+    // ── Tareas state ──────────────────────────────────────────────────────
+    const [tareasModal, setTareasModal] = useState<'create' | 'edit' | null>(null)
+    const [editingTarea, setEditingTarea] = useState<ITarea | null>(null)
+    const [viewTarea, setViewTarea] = useState<ITarea | null>(null)
+    const [tareaForm, setTareaForm] = useState({ titulo: '', texto: '', estado: 'pendiente' as 'pendiente' | 'completada' })
+    const [tareaSubmitting, setTareaSubmitting] = useState(false)
+    const [tareaError, setTareaError] = useState('')
+    const [tareaDeleteConfirmId, setTareaDeleteConfirmId] = useState<string | null>(null)
+    const [tareaStatusDropdown, setTareaStatusDropdown] = useState<string | null>(null)
+
     // Close dropdown when clicking outside
     useEffect(() => {
-        if (!openDropdown) return
-        const handler = () => setOpenDropdown(null)
+        if (!openDropdown && !tareaStatusDropdown) return
+        const handler = () => { setOpenDropdown(null); setTareaStatusDropdown(null) }
         window.addEventListener('click', handler)
         return () => window.removeEventListener('click', handler)
-    }, [openDropdown])
+    }, [openDropdown, tareaStatusDropdown])
 
     // ── Computed values (admin vs static) ────────────────────────────────
     const PLAN_CONFIG: Record<string, { name: string; totalHours: number }> = {
@@ -180,7 +200,14 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
     const remainingHours = Math.max(0, totalHours - completedHours)
     const progressPct = totalHours > 0 ? Math.min(100, Math.round((completedHours / totalHours) * 100)) : 0
 
-    const displaySessions = [...userSessions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const displaySessions = [...userSessions].sort((a, b) => {
+        const timeA = new Date(a.date).getTime()
+        const timeB = new Date(b.date).getTime()
+        if (timeA !== timeB) return timeB - timeA
+        const addedA = a.addedAt ? new Date(a.addedAt).getTime() : 0
+        const addedB = b.addedAt ? new Date(b.addedAt).getTime() : 0
+        return addedB - addedA
+    })
 
     const computedWeeks = computeWeekBreakdown(userSessions)
 
@@ -238,16 +265,14 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
         setSubmitting(true)
         setFormError('')
         try {
-            let lastResult: Awaited<ReturnType<typeof adminAddSession>> | null = null
-            for (const topic of selectedTopics) {
-                lastResult = await adminAddSession(token, adminUserId!, {
-                    hours: hrs,
-                    topic,
-                    notes: formNotes.trim() || undefined,
-                    date: formDate,
-                })
-            }
-            if (lastResult) setUserSessions(lastResult.sessions)
+            const combinedTopic = selectedTopics.join(', ')
+            const result = await adminAddSession(token, adminUserId!, {
+                hours: hrs,
+                topic: combinedTopic,
+                notes: formNotes.trim() || undefined,
+                date: formDate,
+            })
+            setUserSessions(result.sessions)
             setHorasModal(null)
         } catch (err) {
             setFormError((err as Error).message)
@@ -381,6 +406,90 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
         setEditError('')
     }
 
+    // ── Tareas handlers ───────────────────────────────────────────────────
+    function openCreateTarea() {
+        setTareaForm({ titulo: '', texto: '', estado: 'pendiente' })
+        setTareaError('')
+        setTareasModal('create')
+    }
+
+    function openEditTarea(t: ITarea) {
+        setEditingTarea(t)
+        setTareaForm({ titulo: t.titulo, texto: t.texto, estado: t.estado })
+        setTareaError('')
+        setTareaDeleteConfirmId(null)
+        setTareasModal('edit')
+    }
+
+    async function handleCreateTarea(e: React.FormEvent) {
+        e.preventDefault()
+        if (!tareaForm.titulo.trim()) { setTareaError('El título de la tarea es requerido'); return }
+        if (!adminUserId) return
+        setTareaSubmitting(true)
+        setTareaError('')
+        try {
+            const result = await adminCreateTarea(token, adminUserId, { titulo: tareaForm.titulo.trim(), texto: tareaForm.texto.trim() })
+            setUserProfile((prev) => prev ? { ...prev, tareas: result.tareas } : prev)
+            setTareasModal(null)
+        } catch (err) {
+            setTareaError((err as Error).message)
+        } finally {
+            setTareaSubmitting(false)
+        }
+    }
+
+    async function handleEditTarea(e: React.FormEvent) {
+        e.preventDefault()
+        if (!editingTarea?._id || !adminUserId) return
+        if (!tareaForm.titulo.trim()) { setTareaError('El título de la tarea es requerido'); return }
+        setTareaSubmitting(true)
+        setTareaError('')
+        try {
+            const result = await adminUpdateTarea(token, adminUserId, editingTarea._id, {
+                titulo: tareaForm.titulo.trim(),
+                texto: tareaForm.texto.trim(),
+                estado: tareaForm.estado,
+            })
+            setUserProfile((prev) => prev ? { ...prev, tareas: result.tareas } : prev)
+            setTareasModal(null)
+            setEditingTarea(null)
+        } catch (err) {
+            setTareaError((err as Error).message)
+        } finally {
+            setTareaSubmitting(false)
+        }
+    }
+
+    async function handleDeleteTarea(tareaId: string) {
+        if (!adminUserId) return
+        setTareaSubmitting(true)
+        try {
+            const result = await adminDeleteTarea(token, adminUserId, tareaId)
+            setUserProfile((prev) => prev ? { ...prev, tareas: result.tareas } : prev)
+            setTareasModal(null)
+            setEditingTarea(null)
+            setTareaDeleteConfirmId(null)
+        } catch (err) {
+            setTareaError((err as Error).message)
+        } finally {
+            setTareaSubmitting(false)
+        }
+    }
+
+    async function handleTareaStatusChange(tareaId: string, estado: 'pendiente' | 'completada') {
+        setTareaStatusDropdown(null)
+        try {
+            let result: { tareas: ITarea[] }
+            if (isAdmin && adminUserId) {
+                result = await adminUpdateTarea(token, adminUserId, tareaId, { estado })
+                setUserProfile((prev) => prev ? { ...prev, tareas: result.tareas } : prev)
+            } else {
+                result = await updateMiTarea(token, tareaId, estado)
+                setUserProfile((prev) => prev ? { ...prev, tareas: result.tareas } : prev)
+            }
+        } catch { /* silently ignore inline errors */ }
+    }
+
     return (
         <>
             {isAdmin && !adminUserId ? (
@@ -397,16 +506,30 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
                 </div>
             ) : (
                 <div className="flex flex-col gap-8">
-                    {/* Header */}
-                    <div>
-                        <div className="flex items-center gap-3 font-primary text-[.7rem] tracking-[4px] uppercase text-red-500 mb-2">
-                            <span className="w-5 h-px bg-red-500 inline-block" />
-                            Seguimiento
+                    {/* Header with banner on the right */}
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <div className="flex items-center gap-3 font-primary text-[.7rem] tracking-[4px] uppercase text-red-500 mb-2">
+                                <span className="w-5 h-px bg-red-500 inline-block" />
+                                Seguimiento
+                            </div>
+                            <h2 className="font-serif text-2xl font-bold uppercase text-[#fff0f0]">
+                                Tu Progreso
+                                {loadingAdmin && <span className="ml-3 font-primary text-[.65rem] normal-case tracking-normal text-[rgba(255,210,210,.35)] font-normal">cargando...</span>}
+                            </h2>
                         </div>
-                        <h2 className="font-serif text-2xl font-bold uppercase text-[#fff0f0]">
-                            Tu Progreso
-                            {loadingAdmin && <span className="ml-3 font-primary text-[.65rem] normal-case tracking-normal text-[rgba(255,210,210,.35)] font-normal">cargando...</span>}
-                        </h2>
+                        {/* Banner usuario seleccionado */}
+                        {adminUserId && selectedUserName && (
+                            <div className="flex items-center gap-3 bg-red-950/40 border border-red-700/30 rounded-xl px-5 py-3 shrink-0">
+                                <svg className="w-4 h-4 text-red-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A9 9 0 1118.88 6.196M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <div className="flex flex-col">
+                                    <span className="font-primary font-semibold text-[.88rem] text-[#fff0f0] leading-tight">{selectedUserName}</span>
+                                    {selectedUserEmail && <span className="font-primary text-[.73rem] text-[rgba(255,210,210,.5)] leading-tight">{selectedUserEmail}</span>}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Top row: progress + weekly breakdown */}
@@ -683,6 +806,97 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
                             )
                         })()}
                     </div>
+
+                    {/* ── Tareas ─────────────────────────────────────────── */}
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-primary text-[.72rem] uppercase tracking-[3px] text-[rgba(255,210,210,.4)]">Tareas</h3>
+                            {isAdmin && adminUserId && (
+                                <button
+                                    onClick={openCreateTarea}
+                                    className="flex items-center gap-1.5 font-primary text-[.6rem] font-bold uppercase tracking-[1px] px-2.5 py-1 rounded-lg bg-red-700/20 border border-red-500/30 text-red-300 hover:bg-red-700/35 transition-colors"
+                                >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                    Nueva tarea
+                                </button>
+                            )}
+                        </div>
+                        <div className="bg-red-950/20 backdrop-blur-sm border border-red-800/20 rounded-2xl">
+                            {(userProfile?.tareas ?? []).length === 0 ? (
+                                <p className="font-primary text-[.78rem] text-[rgba(255,210,210,.3)] text-center py-6">Sin tareas asignadas aún</p>
+                            ) : (
+                                <ul className="flex flex-col divide-y divide-red-800/10">
+                                    {(userProfile?.tareas ?? []).map((tarea) => {
+                                        const cfg = TAREA_STATUS_CONFIG[tarea.estado] ?? TAREA_STATUS_CONFIG['pendiente']
+                                        const fechaFmt = new Date(tarea.fechaCreacion).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })
+                                        return (
+                                            <li key={tarea._id} className="flex items-center gap-3 px-5 py-3 hover:bg-red-950/20 transition-colors">
+                                                <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-primary text-[.82rem] font-semibold text-[rgba(255,210,210,.85)] leading-snug truncate">{tarea.titulo}</p>
+                                                    <p className="font-primary text-[.65rem] text-[rgba(255,210,210,.35)] mt-0.5">{fechaFmt}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    {/* Ver tarea */}
+                                                    <button
+                                                        onClick={() => setViewTarea(tarea)}
+                                                        title="Ver tarea"
+                                                        className="p-1.5 rounded-lg bg-red-950/40 border border-red-800/20 text-[rgba(255,210,210,.35)] hover:text-rose-400 hover:border-red-600/40 transition-colors"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    </button>
+                                                    {/* Status dropdown — posición fixed para evitar clipping */}
+                                                    <div className="relative">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => { e.stopPropagation(); setTareaStatusDropdown(tareaStatusDropdown === tarea._id ? null : (tarea._id ?? null)) }}
+                                                            className={`flex items-center gap-1.5 font-primary text-[.58rem] font-bold uppercase tracking-[1px] px-2.5 py-1 rounded-lg border transition-colors ${cfg.cls}`}
+                                                        >
+                                                            {cfg.label}
+                                                            <svg className={`w-3 h-3 transition-transform ${tareaStatusDropdown === tarea._id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+                                                        </button>
+                                                        {tareaStatusDropdown === tarea._id && (
+                                                            <div onClick={(e) => e.stopPropagation()} className="absolute right-0 top-full mt-1 z-30 w-36 bg-[#1a0808] border border-red-800/40 rounded-xl shadow-2xl">
+                                                                {(['pendiente', 'completada'] as const).map((s) => {
+                                                                    const sCfg = TAREA_STATUS_CONFIG[s]
+                                                                    return (
+                                                                        <button
+                                                                            key={s}
+                                                                            type="button"
+                                                                            onClick={() => tarea._id && handleTareaStatusChange(tarea._id, s)}
+                                                                            className={`w-full flex items-center gap-2 px-3 py-2 font-primary text-[.65rem] font-bold uppercase tracking-[1px] transition-colors hover:bg-red-900/30 text-left first:rounded-t-xl last:rounded-b-xl ${tarea.estado === s ? 'bg-red-900/20' : ''}`}
+                                                                        >
+                                                                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sCfg.dot}`} />
+                                                                            <span className={sCfg.cls.split(' ').find(c => c.startsWith('text-')) ?? 'text-white'}>{sCfg.label}</span>
+                                                                        </button>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {/* Editar (solo admin) */}
+                                                    {isAdmin && adminUserId && (
+                                                        <button
+                                                            onClick={() => openEditTarea(tarea)}
+                                                            title="Editar tarea"
+                                                            className="p-1.5 rounded-lg bg-amber-900/20 border border-amber-700/25 text-amber-500/50 hover:text-amber-400 hover:border-amber-500/40 transition-colors"
+                                                        >
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </li>
+                                        )
+                                    })}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -893,68 +1107,206 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
             )}
 
             {/* ── Modal: Editar sesión (admin) ────────────────────────── */}
-            {editSession && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => { setEditSession(null); setDeleteConfirmId(null) }}>
+            {editSession && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => { setEditSession(null); setDeleteConfirmId(null) }}>
+                <form
+                    onClick={(e) => e.stopPropagation()}
+                    onSubmit={handleUpdateSession}
+                    className="w-full max-w-md bg-[#1a0a0a] border border-amber-800/30 rounded-2xl p-6 flex flex-col gap-4 shadow-xl"
+                >
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-serif text-lg font-bold uppercase text-[#fff0f0]">Editar sesión</h3>
+                        <button type="button" onClick={() => { setEditSession(null); setDeleteConfirmId(null) }} className="text-[rgba(255,210,210,.4)] hover:text-rose-400 leading-none text-xl">&times;</button>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                        <label className="flex flex-col gap-1.5">
+                            <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Horas</span>
+                            <input
+                                type="number" step="0.5" min="0.5" required
+                                value={editForm.hours} onChange={(e) => setEditForm((p) => ({ ...p, hours: e.target.value }))}
+                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] focus:outline-none focus:border-amber-500/50"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                            <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Tema</span>
+                            <input
+                                type="text" required
+                                value={editForm.topic} onChange={(e) => setEditForm((p) => ({ ...p, topic: e.target.value }))}
+                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] focus:outline-none focus:border-amber-500/50"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                            <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Fecha</span>
+                            <input
+                                type="date" required
+                                value={editForm.date} onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))}
+                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] focus:outline-none focus:border-amber-500/50"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between">
+                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Notas <span className="normal-case tracking-normal text-[rgba(255,210,210,.3)]">(opcional)</span></span>
+                                <span className="font-primary text-[.6rem] text-[rgba(255,210,210,.3)]">{editForm.notes.length}/300</span>
+                            </div>
+                            <textarea
+                                maxLength={300} rows={3}
+                                value={editForm.notes} onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
+                                placeholder="Observaciones sobre la sesión..."
+                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-amber-500/50 resize-none"
+                            />
+                        </label>
+                    </div>
+                    {editFormError && <p className="font-primary text-[.75rem] text-rose-400">{editFormError}</p>}
+                    <div className="flex gap-2">
+                        <button
+                            type="submit" disabled={editSubmitting}
+                            className="flex-1 font-primary text-[.8rem] font-bold uppercase tracking-[1.5px] py-2.5 rounded-xl bg-amber-700/25 border border-amber-500/35 text-amber-400 hover:bg-amber-700/40 transition-colors disabled:opacity-50"
+                        >
+                            {editSubmitting ? 'Guardando...' : 'Guardar cambios'}
+                        </button>
+                        {deleteConfirmId === editSession._id ? (
+                            <button
+                                type="button"
+                                onClick={() => handleDeleteSession(editSession._id!)}
+                                disabled={editSubmitting}
+                                className="flex-1 font-primary text-[.8rem] font-bold uppercase tracking-[1.5px] py-2.5 rounded-xl bg-red-700/40 border border-red-500/50 text-red-300 hover:bg-red-700/60 transition-colors disabled:opacity-50"
+                            >
+                                ¿Confirmar eliminación?
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => setDeleteConfirmId(editSession._id ?? null)}
+                                disabled={editSubmitting}
+                                className="px-4 py-2.5 rounded-xl bg-red-950/40 border border-red-800/30 text-[rgba(255,100,100,.5)] hover:text-red-400 hover:border-red-600/40 transition-colors disabled:opacity-50"
+                                title="Eliminar sesión"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                </form>
+            </div>
+            )}
+
+            {/* ── Modal: Nueva tarea (admin) ──────────────────────────── */}
+            {tareasModal === 'create' && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setTareasModal(null)}>
                     <form
                         onClick={(e) => e.stopPropagation()}
-                        onSubmit={handleUpdateSession}
-                        className="w-full max-w-md bg-[#1a0a0a] border border-amber-800/30 rounded-2xl p-6 flex flex-col gap-4 shadow-xl"
+                        onSubmit={handleCreateTarea}
+                        className="w-full max-w-md bg-[#1a0a0a] border border-red-800/30 rounded-2xl p-6 flex flex-col gap-5 shadow-xl"
                     >
                         <div className="flex items-center justify-between">
-                            <h3 className="font-serif text-lg font-bold uppercase text-[#fff0f0]">Editar sesión</h3>
-                            <button type="button" onClick={() => { setEditSession(null); setDeleteConfirmId(null) }} className="text-[rgba(255,210,210,.4)] hover:text-rose-400 leading-none text-xl">&times;</button>
+                            <h3 className="font-serif text-lg font-bold uppercase text-[#fff0f0]">Nueva tarea</h3>
+                            <button type="button" onClick={() => setTareasModal(null)} className="text-[rgba(255,210,210,.4)] hover:text-rose-400 leading-none text-xl">&times;</button>
                         </div>
-                        <div className="flex flex-col gap-3">
+                        <label className="flex flex-col gap-1.5">
+                            <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Título <span className="text-rose-500">*</span></span>
+                            <input
+                                type="text"
+                                required
+                                maxLength={300}
+                                value={tareaForm.titulo}
+                                onChange={(e) => setTareaForm((p) => ({ ...p, titulo: e.target.value }))}
+                                placeholder="Título de la tarea..."
+                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-red-500/50"
+                            />
+                            <span className={`font-primary text-[.6rem] text-right ${tareaForm.titulo.length > 270 ? 'text-rose-400' : 'text-[rgba(255,210,210,.25)]'}`}>{tareaForm.titulo.length}/300</span>
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                            <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Descripción</span>
+                            <textarea
+                                rows={3}
+                                maxLength={300}
+                                value={tareaForm.texto}
+                                onChange={(e) => setTareaForm((p) => ({ ...p, texto: e.target.value }))}
+                                placeholder="Describe la tarea (opcional)..."
+                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-red-500/50 resize-none"
+                            />
+                            <span className={`font-primary text-[.6rem] text-right ${tareaForm.texto.length > 270 ? 'text-rose-400' : 'text-[rgba(255,210,210,.25)]'}`}>{tareaForm.texto.length}/300</span>
+                        </label>
+                        {tareaError && <p className="font-primary text-[.75rem] text-rose-400">{tareaError}</p>}
+                        <button
+                            type="submit" disabled={tareaSubmitting}
+                            className="w-full font-primary text-[.8rem] font-bold uppercase tracking-[2px] py-3 rounded-xl bg-red-700/25 border border-red-500/40 text-red-300 hover:bg-red-700/40 transition-colors disabled:opacity-50"
+                        >
+                            {tareaSubmitting ? 'Creando...' : 'Crear tarea'}
+                        </button>
+                    </form>
+                </div>
+            )}
+
+            {/* ── Modal: Editar tarea (admin) ─────────────────────────── */}
+            {tareasModal === 'edit' && editingTarea && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => { setTareasModal(null); setEditingTarea(null); setTareaDeleteConfirmId(null) }}>
+                    <form
+                        onClick={(e) => e.stopPropagation()}
+                        onSubmit={handleEditTarea}
+                        className="w-full max-w-md bg-[#1a0a0a] border border-amber-800/30 rounded-2xl p-6 flex flex-col gap-5 shadow-xl"
+                    >
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-serif text-lg font-bold uppercase text-[#fff0f0]">Editar tarea</h3>
+                            <button type="button" onClick={() => { setTareasModal(null); setEditingTarea(null); setTareaDeleteConfirmId(null) }} className="text-[rgba(255,210,210,.4)] hover:text-rose-400 leading-none text-xl">&times;</button>
+                        </div>
+                        <div className="flex flex-col gap-4">
                             <label className="flex flex-col gap-1.5">
-                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Horas</span>
+                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Título <span className="text-rose-500">*</span></span>
                                 <input
-                                    type="number" step="0.5" min="0.5" required
-                                    value={editForm.hours} onChange={(e) => setEditForm((p) => ({ ...p, hours: e.target.value }))}
+                                    type="text"
+                                    required
+                                    maxLength={300}
+                                    value={tareaForm.titulo}
+                                    onChange={(e) => setTareaForm((p) => ({ ...p, titulo: e.target.value }))}
                                     className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] focus:outline-none focus:border-amber-500/50"
                                 />
+                                <span className={`font-primary text-[.6rem] text-right ${tareaForm.titulo.length > 270 ? 'text-rose-400' : 'text-[rgba(255,210,210,.25)]'}`}>{tareaForm.titulo.length}/300</span>
                             </label>
-                            <label className="flex flex-col gap-1.5">
-                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Tema</span>
-                                <input
-                                    type="text" required
-                                    value={editForm.topic} onChange={(e) => setEditForm((p) => ({ ...p, topic: e.target.value }))}
-                                    className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] focus:outline-none focus:border-amber-500/50"
-                                />
-                            </label>
-                            <label className="flex flex-col gap-1.5">
-                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Fecha</span>
-                                <input
-                                    type="date" required
-                                    value={editForm.date} onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))}
-                                    className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] focus:outline-none focus:border-amber-500/50"
-                                />
-                            </label>
-                            <label className="flex flex-col gap-1.5">
-                                <div className="flex items-center justify-between">
-                                    <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Notas <span className="normal-case tracking-normal text-[rgba(255,210,210,.3)]">(opcional)</span></span>
-                                    <span className="font-primary text-[.6rem] text-[rgba(255,210,210,.3)]">{editForm.notes.length}/300</span>
+                            <div className="flex flex-col gap-1.5">
+                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Estado</span>
+                                <div className="flex gap-2">
+                                    {(['pendiente', 'completada'] as const).map((s) => {
+                                        const cfg = TAREA_STATUS_CONFIG[s]
+                                        return (
+                                            <button
+                                                key={s}
+                                                type="button"
+                                                onClick={() => setTareaForm((p) => ({ ...p, estado: s }))}
+                                                className={`flex-1 flex items-center justify-center gap-2 font-primary text-[.65rem] font-bold uppercase tracking-[1px] px-3 py-2 rounded-xl border transition-colors ${tareaForm.estado === s ? cfg.cls : 'bg-red-950/30 border-red-800/20 text-[rgba(255,210,210,.35)]'}`}
+                                            >
+                                                <span className={`w-2 h-2 rounded-full shrink-0 ${tareaForm.estado === s ? cfg.dot : 'bg-[rgba(255,210,210,.2)]'}`} />
+                                                {cfg.label}
+                                            </button>
+                                        )
+                                    })}
                                 </div>
+                            </div>
+                            <label className="flex flex-col gap-1.5">
+                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Descripción</span>
                                 <textarea
-                                    maxLength={300} rows={3}
-                                    value={editForm.notes} onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
-                                    placeholder="Observaciones sobre la sesión..."
-                                    className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-amber-500/50 resize-none"
+                                    rows={3}
+                                    maxLength={300}
+                                    value={tareaForm.texto}
+                                    onChange={(e) => setTareaForm((p) => ({ ...p, texto: e.target.value }))}
+                                    className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] focus:outline-none focus:border-amber-500/50 resize-none"
                                 />
+                                <span className={`font-primary text-[.6rem] text-right ${tareaForm.texto.length > 270 ? 'text-rose-400' : 'text-[rgba(255,210,210,.25)]'}`}>{tareaForm.texto.length}/300</span>
                             </label>
                         </div>
-                        {editFormError && <p className="font-primary text-[.75rem] text-rose-400">{editFormError}</p>}
+                        {tareaError && <p className="font-primary text-[.75rem] text-rose-400">{tareaError}</p>}
                         <div className="flex gap-2">
                             <button
-                                type="submit" disabled={editSubmitting}
+                                type="submit" disabled={tareaSubmitting}
                                 className="flex-1 font-primary text-[.8rem] font-bold uppercase tracking-[1.5px] py-2.5 rounded-xl bg-amber-700/25 border border-amber-500/35 text-amber-400 hover:bg-amber-700/40 transition-colors disabled:opacity-50"
                             >
-                                {editSubmitting ? 'Guardando...' : 'Guardar cambios'}
+                                {tareaSubmitting ? 'Guardando...' : 'Guardar cambios'}
                             </button>
-                            {deleteConfirmId === editSession._id ? (
+                            {tareaDeleteConfirmId === editingTarea._id ? (
                                 <button
                                     type="button"
-                                    onClick={() => handleDeleteSession(editSession._id!)}
-                                    disabled={editSubmitting}
+                                    onClick={() => handleDeleteTarea(editingTarea._id!)}
+                                    disabled={tareaSubmitting}
                                     className="flex-1 font-primary text-[.8rem] font-bold uppercase tracking-[1.5px] py-2.5 rounded-xl bg-red-700/40 border border-red-500/50 text-red-300 hover:bg-red-700/60 transition-colors disabled:opacity-50"
                                 >
                                     ¿Confirmar eliminación?
@@ -962,10 +1314,10 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
                             ) : (
                                 <button
                                     type="button"
-                                    onClick={() => setDeleteConfirmId(editSession._id ?? null)}
-                                    disabled={editSubmitting}
+                                    onClick={() => setTareaDeleteConfirmId(editingTarea._id ?? null)}
+                                    disabled={tareaSubmitting}
                                     className="px-4 py-2.5 rounded-xl bg-red-950/40 border border-red-800/30 text-[rgba(255,100,100,.5)] hover:text-red-400 hover:border-red-600/40 transition-colors disabled:opacity-50"
-                                    title="Eliminar sesión"
+                                    title="Eliminar tarea"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -974,6 +1326,41 @@ export default function SeguimientoPanel({ adminUserId }: { adminUserId?: string
                             )}
                         </div>
                     </form>
+                </div>
+            )}
+
+            {/* ── Modal: Ver tarea ────────────────────────────────────── */}
+            {viewTarea && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setViewTarea(null)}>
+                    <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-[#1a0a0a] border border-red-800/30 rounded-2xl p-6 flex flex-col gap-4 shadow-xl">
+                        <div className="flex items-start justify-between gap-3">
+                            <h3 className="font-serif text-lg font-bold text-[#fff0f0] leading-tight flex-1">{viewTarea.titulo}</h3>
+                            <button onClick={() => setViewTarea(null)} className="text-[rgba(255,210,210,.4)] hover:text-rose-400 leading-none text-xl shrink-0">&times;</button>
+                        </div>
+                        {viewTarea.texto && (
+                            <div className="flex flex-col gap-1">
+                                <span className="font-primary text-[.65rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.4)]">Descripción</span>
+                                <p className="font-primary text-sm text-[rgba(255,210,210,.8)] leading-relaxed whitespace-pre-wrap">{viewTarea.texto}</p>
+                            </div>
+                        )}
+                        <div className="flex items-center justify-between pt-2 border-t border-red-800/20">
+                            <div className="flex flex-col gap-0.5">
+                                <span className="font-primary text-[.6rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.3)]">Fecha de creación</span>
+                                <span className="font-primary text-[.75rem] text-[rgba(255,210,210,.55)]">
+                                    {new Date(viewTarea.fechaCreacion).toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                </span>
+                            </div>
+                            {(() => {
+                                const cfg = TAREA_STATUS_CONFIG[viewTarea.estado] ?? TAREA_STATUS_CONFIG['pendiente']
+                                return (
+                                    <span className={`flex items-center gap-1.5 font-primary text-[.65rem] font-bold uppercase tracking-[1px] px-3 py-1 rounded-lg border ${cfg.cls}`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                                        {cfg.label}
+                                    </span>
+                                )
+                            })()}
+                        </div>
+                    </div>
                 </div>
             )}
         </>

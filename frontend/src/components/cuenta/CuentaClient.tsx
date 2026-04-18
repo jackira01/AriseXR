@@ -194,10 +194,10 @@ export default function CuentaClient() {
                     </div>
                 ) : (
                     <>
-                        {activeTab === 'seguimiento' && <SeguimientoPanel adminUserId={selectedUser?._id} />}
+                        {activeTab === 'seguimiento' && <SeguimientoPanel adminUserId={selectedUser?._id} selectedUserName={selectedUser?.name} selectedUserEmail={selectedUser?.email} />}
                         {activeTab === 'chat' && <ChatPanel isAdmin={isAdmin} />}
-                        {activeTab === 'facturacion' && <FacturacionPanel adminUserId={selectedUser?._id} />}
-                        {activeTab === 'paquetes' && <PaquetesPanel adminUserId={selectedUser?._id} />}
+                        {activeTab === 'facturacion' && <FacturacionPanel adminUserId={selectedUser?._id} selectedUserName={selectedUser?.name} selectedUserEmail={selectedUser?.email} />}
+                        {activeTab === 'paquetes' && <PaquetesPanel adminUserId={selectedUser?._id} selectedUserName={selectedUser?.name} selectedUserEmail={selectedUser?.email} />}
                         {activeTab === 'temas' && isAdmin && <TemasPanel />}
                     </>
                 )}
