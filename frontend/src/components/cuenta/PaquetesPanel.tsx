@@ -109,7 +109,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                         <span className="w-5 h-px bg-red-500 inline-block" />
                         Paquetes
                     </div>
-                        <h2 className="font-serif text-2xl font-bold uppercase text-[#fff0f0]">Paquetes Disponibles</h2>
+                    <h2 className="font-serif text-2xl font-bold uppercase text-[#fff0f0]">Paquetes Disponibles</h2>
                 </div>
                 {/* Banner usuario seleccionado */}
                 {adminUserId && selectedUserName && (
