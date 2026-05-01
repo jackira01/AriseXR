@@ -141,7 +141,8 @@ export default function PricingSection() {
                     </p>
                 </div>
 
-                {/* Discount banner */}
+                {/* Discount banner - Hide when countdown reaches zero */}
+                {(timeLeft.days > 0 || timeLeft.hours > 0 || timeLeft.minutes > 0 || timeLeft.seconds > 0) && (
                 <div className="mb-12 bg-gradient-to-r from-purple-900/40 via-red-900/40 to-orange-900/40 backdrop-blur-sm border border-purple-500/30 rounded-2xl p-6 sm:p-8">
                     <div className="max-w-5xl mx-auto">
                         <div className="flex items-center justify-center gap-2 mb-5">
@@ -197,6 +198,7 @@ export default function PricingSection() {
                         </div>
                     </div>
                 </div>
+                )}
 
                 {/* Plan cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
