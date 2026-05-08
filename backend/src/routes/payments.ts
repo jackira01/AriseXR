@@ -10,6 +10,7 @@ const router = Router()
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
 
 const PLAN_LABELS: Record<string, string> = {
+    intro: 'Intro Pack',
     silver: 'Silver Pack',
     esmerald: 'Esmerald Pack',
     diamond: 'Diamond Pack',
@@ -19,6 +20,7 @@ const PLAN_LABELS: Record<string, string> = {
 function buildPricePlanMap(): Record<string, string> {
     const map: Record<string, string> = {}
     const entries: [string, string][] = [
+        [process.env.STRIPE_PRICE_INTRO ?? '', 'intro'],
         [process.env.STRIPE_PRICE_SILVER ?? '', 'silver'],
         [process.env.STRIPE_PRICE_ESMERALD ?? '', 'esmerald'],
         [process.env.STRIPE_PRICE_DIAMOND ?? '', 'diamond'],

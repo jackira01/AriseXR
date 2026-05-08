@@ -7,13 +7,29 @@ import { createCheckoutSession } from '@/lib/api'
 
 const PLANS = [
     {
+        name: 'Intro Pack',
+        badge: 'INICIADOR',
+        price: '$31 USD',
+        highlight: false,
+        rankImg: '/ranks/grandmaster.png',
+        rankGlow: '#90a4ae',
+        detail1: '1 hr en total',
+        detail2: '1 game',
+        detail3: '1 – 2',
+        description: 'El punto de partida perfecto para conocer nuestro método y análisis de errores.',
+        cta: 'Elegir Intro',
+        priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_INTRO ?? '',
+        guarantee: false,
+        features: ['Análisis de errores', 'Retroalimentación inicial'],
+    },
+    {
         name: 'Silver Pack',
         badge: '',
-        price: '$4,800 MX',
+        price: '$125 USD',
         highlight: false,
         rankImg: '/ranks/silver.webp',
         rankGlow: '#90a4ae',
-        detail1: '8 hrs en total',
+        detail1: '6 hrs en total',
         detail2: '5 games',
         detail3: '6 – 8',
         description: 'El punto de partida ideal para comenzar a mejorar con estructura y guía profesional.',
@@ -25,11 +41,11 @@ const PLANS = [
     {
         name: 'Esmerald Pack',
         badge: '',
-        price: '$7,200 MX',
+        price: '$219 USD',
         highlight: false,
         rankImg: '/ranks/emerald.png',
         rankGlow: '#3dba6a',
-        detail1: '12 hrs en total',
+        detail1: '10 hrs en total',
         detail2: '10 games',
         detail3: '8 – 10',
         description: 'Para jugadores que quieren progresar de forma constante y afianzar sus bases.',
@@ -41,7 +57,7 @@ const PLANS = [
     {
         name: 'Diamond Pack',
         badge: 'RECOMENDADO',
-        price: '$11,500 MX',
+        price: '$500 USD',
         highlight: true,
         rankImg: '/ranks/diamond.png',
         rankGlow: '#4a9ee0',
@@ -57,7 +73,7 @@ const PLANS = [
     {
         name: 'Chall Pack',
         badge: 'RETADOR',
-        price: '$15,900 MX',
+        price: '$938 USD',
         highlight: false,
         rankImg: '/ranks/challenger.png',
         rankGlow: '#ffd600',
@@ -143,71 +159,71 @@ export default function PricingSection() {
 
                 {/* Discount banner - Hide when countdown reaches zero */}
                 {(timeLeft.days > 0 || timeLeft.hours > 0 || timeLeft.minutes > 0 || timeLeft.seconds > 0) && (
-                <div className="mb-12 bg-gradient-to-r from-purple-900/40 via-red-900/40 to-orange-900/40 backdrop-blur-sm border border-purple-500/30 rounded-2xl p-6 sm:p-8">
-                    <div className="max-w-5xl mx-auto">
-                        <div className="flex items-center justify-center gap-2 mb-5">
-                            <h3 className="font-serif text-xl font-bold uppercase text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-pink-300 to-orange-300">
-                                Cupones Disponibles
-                            </h3>
-                        </div>
+                    <div className="mb-12 bg-gradient-to-r from-purple-900/40 via-red-900/40 to-orange-900/40 backdrop-blur-sm border border-purple-500/30 rounded-2xl p-6 sm:p-8">
+                        <div className="max-w-5xl mx-auto">
+                            <div className="flex items-center justify-center gap-2 mb-5">
+                                <h3 className="font-serif text-xl font-bold uppercase text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-pink-300 to-orange-300">
+                                    Cupones Disponibles
+                                </h3>
+                            </div>
 
-                        {/* Countdown timer */}
-                        <div className="flex items-center justify-center gap-3 mb-6 flex-wrap">
-                            <span className="font-primary text-[.75rem] uppercase tracking-[1px] text-[rgba(255,210,210,.6)]">Válido hasta:</span>
-                            <div className="flex gap-2 sm:gap-3">
-                                {[
-                                    { value: timeLeft.days, label: 'Días' },
-                                    { value: timeLeft.hours, label: 'Hrs' },
-                                    { value: timeLeft.minutes, label: 'Min' },
-                                    { value: timeLeft.seconds, label: 'Seg' },
-                                ].map(({ value, label }) => (
-                                    <div key={label} className="flex flex-col items-center gap-1">
-                                        <div className="bg-gradient-to-br from-red-600 to-orange-600 rounded-lg px-2.5 sm:px-3 py-1.5 border border-red-400/40 shadow-lg shadow-red-500/20">
-                                            <span className="font-serif font-black text-white text-[1.1rem] sm:text-[1.3rem] block min-w-[2.5rem] text-center">
-                                                {String(value).padStart(2, '0')}
-                                            </span>
+                            {/* Countdown timer */}
+                            <div className="flex items-center justify-center gap-3 mb-6 flex-wrap">
+                                <span className="font-primary text-[.75rem] uppercase tracking-[1px] text-[rgba(255,210,210,.6)]">Válido hasta:</span>
+                                <div className="flex gap-2 sm:gap-3">
+                                    {[
+                                        { value: timeLeft.days, label: 'Días' },
+                                        { value: timeLeft.hours, label: 'Hrs' },
+                                        { value: timeLeft.minutes, label: 'Min' },
+                                        { value: timeLeft.seconds, label: 'Seg' },
+                                    ].map(({ value, label }) => (
+                                        <div key={label} className="flex flex-col items-center gap-1">
+                                            <div className="bg-gradient-to-br from-red-600 to-orange-600 rounded-lg px-2.5 sm:px-3 py-1.5 border border-red-400/40 shadow-lg shadow-red-500/20">
+                                                <span className="font-serif font-black text-white text-[1.1rem] sm:text-[1.3rem] block min-w-[2.5rem] text-center">
+                                                    {String(value).padStart(2, '0')}
+                                                </span>
+                                            </div>
+                                            <span className="font-primary text-[.6rem] sm:text-[.65rem] uppercase tracking-[1px] text-[rgba(255,210,210,.5)]">{label}</span>
                                         </div>
-                                        <span className="font-primary text-[.6rem] sm:text-[.65rem] uppercase tracking-[1px] text-[rgba(255,210,210,.5)]">{label}</span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                                {[
+                                    { code: 'CHALL20', discount: '20%', color: 'from-yellow-500 to-orange-500' },
+                                    { code: 'DIAMOND12', discount: '12%', color: 'from-blue-400 to-cyan-400' },
+                                    { code: 'EMERALD8', discount: '8%', color: 'from-green-400 to-emerald-500' },
+                                    { code: 'SILVER5', discount: '5%', color: 'from-gray-300 to-gray-400' },
+                                ].map((coupon) => (
+                                    <div
+                                        key={coupon.code}
+                                        className="relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-white/20 bg-transparent transition-all hover:scale-105 hover:border-white/40 cursor-pointer group"
+                                    >
+                                        <div className="text-center">
+                                            <div className="font-serif text-[1.8rem] sm:text-2xl font-black text-white drop-shadow-lg mb-1">
+                                                {coupon.discount}
+                                            </div>
+                                            <div className="font-primary text-[.7rem] sm:text-[.75rem] font-bold tracking-[2px] uppercase text-white/90 drop-shadow-md">
+                                                {coupon.code}
+                                            </div>
+                                        </div>
+                                        <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-20 bg-white transition-opacity" />
                                     </div>
                                 ))}
                             </div>
                         </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                            {[
-                                { code: 'CHALL20', discount: '20%', color: 'from-yellow-500 to-orange-500' },
-                                { code: 'DIAMOND12', discount: '12%', color: 'from-blue-400 to-cyan-400' },
-                                { code: 'EMERALD8', discount: '8%', color: 'from-green-400 to-emerald-500' },
-                                { code: 'SILVER5', discount: '5%', color: 'from-gray-300 to-gray-400' },
-                            ].map((coupon) => (
-                                <div
-                                    key={coupon.code}
-                                    className="relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-white/20 bg-transparent transition-all hover:scale-105 hover:border-white/40 cursor-pointer group"
-                                >
-                                    <div className="text-center">
-                                        <div className="font-serif text-[1.8rem] sm:text-2xl font-black text-white drop-shadow-lg mb-1">
-                                            {coupon.discount}
-                                        </div>
-                                        <div className="font-primary text-[.7rem] sm:text-[.75rem] font-bold tracking-[2px] uppercase text-white/90 drop-shadow-md">
-                                            {coupon.code}
-                                        </div>
-                                    </div>
-                                    <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-20 bg-white transition-opacity" />
-                                </div>
-                            ))}
-                        </div>
                     </div>
-                </div>
                 )}
 
                 {/* Plan cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-3 items-stretch">
                     {PLANS.map((plan, i) => (
                         <div
                             key={plan.name}
                             style={{ animationDelay: `${i * 100}ms` }}
-                            className={`relative flex flex-col rounded-2xl p-6 sm:p-7 border transition-all duration-300 ${plan.highlight
-                                ? 'bg-linear-to-br from-red-800 to-red-600 border-red-500/40 shadow-[0_0_60px_rgba(180,20,20,.45)] lg:scale-105'
+                            className={`relative flex flex-col rounded-2xl p-4 sm:p-6 lg:p-5 border transition-all duration-300 ${plan.highlight
+                                ? 'bg-linear-to-br from-red-800 to-red-600 border-red-500/40 shadow-[0_0_60px_rgba(180,20,20,.45)] lg:scale-100'
                                 : 'bg-red-950/30 backdrop-blur-sm border-red-800/20 hover:shadow-red-950/60 hover:border-red-700/35 shadow-[0_0_30px_rgba(0,0,0,.5)]'
                                 }`}
                         >
@@ -220,39 +236,39 @@ export default function PricingSection() {
                                 </div>
                             )}
 
-                            <div className="flex justify-center mb-4">
+                            <div className="flex justify-center mb-3">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src={plan.rankImg}
                                     alt={plan.name}
-                                    className="w-16 h-16 object-contain"
+                                    className="w-12 lg:w-14 h-12 lg:h-14 object-contain"
                                     style={{ filter: `drop-shadow(0 0 14px ${plan.rankGlow}88)` }}
                                 />
                             </div>
 
-                            <h3 className={`font-serif text-[1.35rem] font-bold uppercase text-center leading-tight mb-5 ${plan.highlight ? 'text-white' : 'text-[#fff0f0]'}`}>
+                            <h3 className={`font-serif text-[1.15rem] lg:text-[1.1rem] font-bold uppercase text-center leading-tight mb-3 lg:mb-2 ${plan.highlight ? 'text-white' : 'text-[#fff0f0]'}`}>
                                 {plan.name}
                             </h3>
 
-                            <div className={`flex flex-col gap-1.5 mb-4 ${plan.highlight ? 'text-red-100' : 'text-[rgba(255,210,210,.8)]'}`}>
-                                <div className="flex items-center gap-2 font-primary text-[.85rem] font-semibold"><span>⏱</span> {plan.detail1}</div>
-                                <div className="flex items-center gap-2 font-primary text-[.85rem] font-semibold"><span>🎮</span> {plan.detail2}</div>
-                                <div className="flex items-center gap-2 font-primary text-[.85rem] font-semibold"><span>📚</span> {plan.detail3} temas</div>
+                            <div className={`flex flex-col gap-1 mb-2 lg:mb-1.5 ${plan.highlight ? 'text-red-100' : 'text-[rgba(255,210,210,.8)]'}`}>
+                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>⏱</span> {plan.detail1}</div>
+                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>🎮</span> {plan.detail2}</div>
+                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>📚</span> {plan.detail3} temas</div>
                             </div>
 
-                            <div className={`h-px mb-4 ${plan.highlight ? 'bg-white/20' : 'bg-red-800/25'}`} />
+                            <div className={`h-px mb-2 lg:mb-1.5 ${plan.highlight ? 'bg-white/20' : 'bg-red-800/25'}`} />
 
-                            <div className="text-center mb-4">
-                                <span className={`font-primary text-[2.2rem] font-black leading-none ${plan.highlight ? 'text-white' : 'text-[#fff0f0]'}`}>{plan.price}</span>
+                            <div className="text-center mb-2 lg:mb-1.5">
+                                <span className={`font-primary text-[1.8rem] lg:text-[1.6rem] font-black leading-none ${plan.highlight ? 'text-white' : 'text-[#fff0f0]'}`}>{plan.price}</span>
                             </div>
 
-                            <p className={`font-primary text-[.82rem] leading-relaxed text-center mb-4 ${plan.highlight ? 'text-white/75' : 'text-[rgba(255,200,200,.6)]'}`}>
+                            <p className={`font-primary text-[.75rem] lg:text-[.7rem] leading-relaxed text-center mb-3 lg:mb-2 ${plan.highlight ? 'text-white/75' : 'text-[rgba(255,200,200,.6)]'}`}>
                                 {plan.description}
                             </p>
 
-                            <ul className="flex flex-col gap-2 mb-6 flex-1">
+                            <ul className="flex flex-col gap-1.5 mb-4 lg:mb-3 flex-1">
                                 {plan.features.map((feat) => (
-                                    <li key={feat} className={`flex items-start gap-2 font-primary text-[.8rem] leading-snug ${plan.highlight ? 'text-white/80' : 'text-[rgba(255,210,210,.75)]'}`}>
+                                    <li key={feat} className={`flex items-start gap-1.5 font-primary text-[.7rem] lg:text-[.65rem] leading-snug ${plan.highlight ? 'text-white/80' : 'text-[rgba(255,210,210,.75)]'}`}>
                                         <svg className={`w-4 h-4 shrink-0 mt-[1px] ${plan.highlight ? 'text-white/70' : 'text-red-400'}`} viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
                                         </svg>
@@ -264,7 +280,7 @@ export default function PricingSection() {
                             <button
                                 onClick={() => handleCheckout(plan.priceId)}
                                 disabled={loadingPriceId !== null}
-                                className={`w-full py-3 font-primary text-[.87rem] font-bold tracking-[2px] uppercase rounded-xl cursor-pointer transition-all duration-250 text-center disabled:opacity-60 disabled:cursor-not-allowed ${plan.highlight
+                                className={`w-full py-2 lg:py-2.5 font-primary text-[.75rem] lg:text-[.7rem] font-bold tracking-[1.5px] lg:tracking-[2px] uppercase rounded-xl cursor-pointer transition-all duration-250 text-center disabled:opacity-60 disabled:cursor-not-allowed ${plan.highlight
                                     ? 'bg-white text-red-700 hover:bg-white/90 shadow-[0_4px_20px_rgba(0,0,0,.2)]'
                                     : 'bg-linear-to-br from-red-700 to-red-500 text-white hover:brightness-110 shadow-[0_0_20px_rgba(180,20,20,.35)]'
                                     }`}

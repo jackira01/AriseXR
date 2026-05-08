@@ -35,7 +35,7 @@ export interface IUser extends Document {
     verificationCode?: string | null
     verificationCodeExpires?: Date | null
     role: 'user' | 'admin'
-    plan: 'silver' | 'esmerald' | 'diamond' | 'challenger' | null
+    plan: 'intro' | 'silver' | 'esmerald' | 'diamond' | 'challenger' | null
     hasPlan: boolean
     planActive: boolean
     additionalHours: number
@@ -119,7 +119,7 @@ const UserSchema = new Schema<IUser>(
         },
         plan: {
             type: String,
-            enum: ['silver', 'esmerald', 'diamond', 'challenger', null],
+            enum: ['intro', 'silver', 'esmerald', 'diamond', 'challenger', null],
             default: null,
         },
         hasPlan: { type: Boolean, default: false },

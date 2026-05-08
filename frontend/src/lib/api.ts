@@ -587,7 +587,7 @@ export async function getUserInvoices(token: string): Promise<InvoiceRecord[]> {
     return response.json()
 }
 
-export type PlanSlug = 'silver' | 'esmerald' | 'diamond' | 'challenger' | null
+export type PlanSlug = 'intro' | 'silver' | 'esmerald' | 'diamond' | 'challenger' | null
 
 export async function adminAssignPlan(
     token: string,

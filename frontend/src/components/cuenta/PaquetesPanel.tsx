@@ -6,14 +6,28 @@ import { adminGetUserProfile, getUserProfile, createCheckoutSession, adminAssign
 
 const PLANS = [
     {
+        name: 'Intro Pack',
+        slug: 'intro' as PlanSlug,
+        price: '$31 USD',
+        highlight: false,
+        current: false,
+        rankImg: '/ranks/grandmaster.png',
+        rankGlow: '#90a4ae',
+        detail1: '1 hr en total',
+        detail2: '1 game',
+        detail3: '1 – 2 temas',
+        priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_INTRO ?? '',
+        features: ['Análisis de errores', 'Retroalimentación inicial'],
+    },
+    {
         name: 'Silver Pack',
         slug: 'silver' as PlanSlug,
-        price: '$4,800 MX',
+        price: '$125 USD',
         highlight: false,
         current: false,
         rankImg: '/ranks/silver.webp',
         rankGlow: '#90a4ae',
-        detail1: '8 hrs en total',
+        detail1: '6 hrs en total',
         detail2: '5 games',
         detail3: '6 – 8 temas',
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_SILVER ?? '',
@@ -22,12 +36,12 @@ const PLANS = [
     {
         name: 'Esmerald Pack',
         slug: 'esmerald' as PlanSlug,
-        price: '$7,200 MX',
+        price: '$219 USD',
         highlight: false,
         current: false,
         rankImg: '/ranks/emerald.png',
         rankGlow: '#3dba6a',
-        detail1: '12 hrs en total',
+        detail1: '10 hrs en total',
         detail2: '10 games',
         detail3: '8 – 10 temas',
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ESMERALD ?? '',
@@ -36,7 +50,7 @@ const PLANS = [
     {
         name: 'Diamond Pack',
         slug: 'diamond' as PlanSlug,
-        price: '$11,500 MX',
+        price: '$500 USD',
         highlight: true,
         current: true,
         rankImg: '/ranks/diamond.png',
@@ -50,7 +64,7 @@ const PLANS = [
     {
         name: 'Chall Pack',
         slug: 'challenger' as PlanSlug,
-        price: '$15,900 MX',
+        price: '$938 USD',
         highlight: false,
         current: false,
         rankImg: '/ranks/challenger.png',
@@ -200,56 +214,56 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
             )}
 
             {/* Plan cards grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 xl:gap-3">
                 {PLANS.map((plan) => {
                     const isCurrent = adminUserPlan ? plan.slug === adminUserPlan : false
                     return (
                         <div
                             key={plan.name}
-                            className={`relative flex flex-col rounded-2xl p-5 border transition-all duration-300 ${isCurrent
+                            className={`relative flex flex-col rounded-2xl p-4 xl:p-3 border transition-all duration-300 ${isCurrent
                                 ? 'bg-linear-to-br from-red-800/90 to-red-700/80 border-red-500/40 shadow-[0_0_40px_rgba(180,20,20,.4)]'
                                 : 'bg-red-950/25 backdrop-blur-sm border-red-800/20 hover:border-red-700/40 hover:bg-red-950/35'
                                 }`}
                         >
                             {isCurrent && (
-                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 font-primary text-[.55rem] font-black tracking-[3px] uppercase px-3 py-0.5 rounded-full bg-linear-to-r from-cyan-400 to-blue-400 text-white shadow-lg whitespace-nowrap">
+                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 font-primary text-[.5rem] xl:text-[.48rem] font-black tracking-[2px] xl:tracking-[1.5px] uppercase px-2.5 py-0.5 rounded-full bg-linear-to-r from-cyan-400 to-blue-400 text-white shadow-lg whitespace-nowrap">
                                     {adminUserId ? 'PAQUETE DEL USUARIO' : 'TU PAQUETE ACTUAL'}
                                 </div>
                             )}
 
                             {/* Rank image */}
-                            <div className="flex justify-center mb-3">
+                            <div className="flex justify-center mb-2">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={plan.rankImg} alt={plan.name} className="w-12 h-12 object-contain"
+                                <img src={plan.rankImg} alt={plan.name} className="w-10 xl:w-9 h-10 xl:h-9 object-contain"
                                     style={{ filter: `drop-shadow(0 0 10px ${plan.rankGlow}77)` }} />
                             </div>
 
                             {/* Name + price */}
-                            <h3 className={`font-serif text-[1.05rem] font-bold uppercase text-center leading-tight mb-1 ${isCurrent ? 'text-white' : 'text-[#fff0f0]'}`}>
+                            <h3 className={`font-serif text-[0.95rem] xl:text-[0.85rem] font-bold uppercase text-center leading-tight mb-0.5 ${isCurrent ? 'text-white' : 'text-[#fff0f0]'}`}>
                                 {plan.name}
                             </h3>
-                            <p className={`font-primary text-[1.5rem] font-black text-center leading-none mb-4 ${isCurrent ? 'text-white' : 'text-[#fff0f0]'}`}>
+                            <p className={`font-primary text-[1.3rem] xl:text-[1.1rem] font-black text-center leading-none mb-2.5 xl:mb-2 ${isCurrent ? 'text-white' : 'text-[#fff0f0]'}`}>
                                 {plan.price}
                             </p>
 
                             {/* Details row */}
-                            <div className={`flex flex-col gap-1 mb-4 pb-4 border-b ${isCurrent ? 'border-white/15' : 'border-red-800/20'}`}>
+                            <div className={`flex flex-col gap-0.5 mb-2.5 xl:mb-2 pb-2.5 xl:pb-2 border-b ${isCurrent ? 'border-white/15' : 'border-red-800/20'}`}>
                                 {[
                                     { icon: '⏱', val: plan.detail1 },
                                     { icon: '🎮', val: plan.detail2 },
                                     { icon: '📚', val: plan.detail3 },
                                 ].map((d) => (
-                                    <div key={d.val} className={`flex items-center gap-2 font-primary text-[.75rem] ${isCurrent ? 'text-red-100' : 'text-[rgba(255,210,210,.7)]'}`}>
+                                    <div key={d.val} className={`flex items-center gap-1.5 font-primary text-[.7rem] xl:text-[.63rem] ${isCurrent ? 'text-red-100' : 'text-[rgba(255,210,210,.7)]'}`}>
                                         <span>{d.icon}</span> {d.val}
                                     </div>
                                 ))}
                             </div>
 
                             {/* Features */}
-                            <ul className="flex flex-col gap-1.5 mb-5 flex-1">
+                            <ul className="flex flex-col gap-1 mb-3 xl:mb-2.5 flex-1">
                                 {plan.features.map((f) => (
-                                    <li key={f} className={`flex items-start gap-2 font-primary text-[.72rem] ${isCurrent ? 'text-white/80' : 'text-[rgba(255,210,210,.6)]'}`}>
-                                        <svg className={`w-3.5 h-3.5 shrink-0 mt-px ${isCurrent ? 'text-cyan-300' : 'text-red-400'}`} viewBox="0 0 20 20" fill="currentColor">
+                                    <li key={f} className={`flex items-start gap-1.5 font-primary text-[.65rem] xl:text-[.6rem] ${isCurrent ? 'text-white/80' : 'text-[rgba(255,210,210,.6)]'}`}>
+                                        <svg className={`w-3 h-3 shrink-0 mt-px ${isCurrent ? 'text-cyan-300' : 'text-red-400'}`} viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
                                         </svg>
                                         {f}
@@ -259,17 +273,17 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
 
                             {/* CTA */}
                             {isCurrent ? (
-                                <div className="w-full py-2.5 bg-white/15 text-white font-primary text-[.75rem] font-bold tracking-[2px] uppercase rounded-xl text-center border border-white/20">
+                                <div className="w-full py-2 xl:py-1.5 bg-white/15 text-white font-primary text-[.65rem] xl:text-[.6rem] font-bold tracking-[1.5px] xl:tracking-[1px] uppercase rounded-xl text-center border border-white/20">
                                     ✓ {adminUserId ? 'Paquete del Usuario' : 'Paquete Activo'}
                                 </div>
                             ) : adminUserId ? (
                                 confirmPlan === plan.name ? (
-                                    <div className="flex flex-col gap-2">
-                                        <p className="font-primary text-[.68rem] text-center text-[rgba(255,210,210,.7)]">¿Asignar <strong className="text-white">{plan.name}</strong> a este usuario?</p>
+                                    <div className="flex flex-col gap-1.5">
+                                        <p className="font-primary text-[.6rem] xl:text-[.55rem] text-center text-[rgba(255,210,210,.7)]">¿Asignar <strong className="text-white">{plan.name}</strong> a este usuario?</p>
                                         {assignError && (
-                                            <p className="font-primary text-[.65rem] text-center text-red-400">{assignError}</p>
+                                            <p className="font-primary text-[.55rem] xl:text-[.5rem] text-center text-red-400">{assignError}</p>
                                         )}
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-1.5">
                                             <button
                                                 onClick={async () => {
                                                     try {
@@ -286,14 +300,14 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                                                     }
                                                 }}
                                                 disabled={assigningPlan !== null}
-                                                className="flex-1 py-2 bg-linear-to-br from-emerald-600 to-green-500 text-white font-primary text-[.7rem] font-bold tracking-[1px] uppercase rounded-xl hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                                className="flex-1 py-1.5 bg-linear-to-br from-emerald-600 to-green-500 text-white font-primary text-[.6rem] xl:text-[.55rem] font-bold tracking-[0.5px] uppercase rounded-xl hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                             >
                                                 {assigningPlan === plan.name ? 'Asignando...' : 'Confirmar'}
                                             </button>
                                             <button
                                                 onClick={() => setConfirmPlan(null)}
                                                 disabled={assigningPlan !== null}
-                                                className="flex-1 py-2 bg-white/10 text-white/70 font-primary text-[.7rem] font-bold tracking-[1px] uppercase rounded-xl hover:bg-white/15 transition-all duration-200 disabled:opacity-60"
+                                                className="flex-1 py-1.5 bg-white/10 text-white/70 font-primary text-[.6rem] xl:text-[.55rem] font-bold tracking-[0.5px] uppercase rounded-xl hover:bg-white/15 transition-all duration-200 disabled:opacity-60"
                                             >
                                                 Cancelar
                                             </button>
@@ -303,13 +317,13 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                                     <button
                                         onClick={() => setConfirmPlan(plan.name)}
                                         disabled={assigningPlan !== null || assigningClose}
-                                        className="w-full py-2.5 bg-linear-to-br from-emerald-700 to-green-600 text-white font-primary text-[.75rem] font-bold tracking-[2px] uppercase rounded-xl text-center hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        className="w-full py-2 xl:py-1.5 bg-linear-to-br from-emerald-700 to-green-600 text-white font-primary text-[.65rem] xl:text-[.6rem] font-bold tracking-[1.5px] xl:tracking-[1px] uppercase rounded-xl text-center hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
                                         Cambiar
                                     </button>
                                 )
                             ) : isAdmin ? (
-                                <div className="w-full py-2.5 bg-white/5 text-[rgba(255,210,210,.35)] font-primary text-[.7rem] tracking-[1px] uppercase rounded-xl text-center border border-white/10 cursor-not-allowed">
+                                <div className="w-full py-2 xl:py-1.5 bg-white/5 text-[rgba(255,210,210,.35)] font-primary text-[.6rem] xl:text-[.55rem] tracking-[1px] uppercase rounded-xl text-center border border-white/10 cursor-not-allowed">
                                     Selecciona un usuario
                                 </div>
                             ) : (
@@ -326,7 +340,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                                         }
                                     }}
                                     disabled={loadingPriceId !== null}
-                                    className="w-full py-2.5 bg-linear-to-br from-red-700 to-red-500 text-white font-primary text-[.75rem] font-bold tracking-[2px] uppercase rounded-xl text-center hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    className="w-full py-2 xl:py-1.5 bg-linear-to-br from-red-700 to-red-500 text-white font-primary text-[.65rem] xl:text-[.6rem] font-bold tracking-[1.5px] xl:tracking-[1px] uppercase rounded-xl text-center hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
                                     {loadingPriceId === plan.priceId ? 'Redirigiendo...' : 'Comprar Paquete'}
                                 </button>
