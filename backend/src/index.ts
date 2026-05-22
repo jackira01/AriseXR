@@ -18,10 +18,33 @@ import { User } from './models/User.js'
 const app = express()
 const httpServer = http.createServer(app)
 const PORT = process.env.PORT ?? 4000
-const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:3000'
+
+// ── Adaptar orígenes de comas a un Array de Strings real ───────────────────
+const ALLOWED_ORIGINS: string[] = process.env.CLIENT_URL
+    ? process.env.CLIENT_URL.split(',').map(url => url.trim())
+    : ['http://localhost:3000']
+
+// En desarrollo local (si no estás en producción), forzamos la inclusión de localhost
+if (process.env.NODE_ENV !== 'production' && !ALLOWED_ORIGINS.includes('http://localhost:3000')) {
+    ALLOWED_ORIGINS.push('http://localhost:3000')
+}
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-app.use(cors({ origin: CLIENT_URL, credentials: true }))
+app.use(cors({
+    origin: (origin, callback) => {
+        // Si la petición no tiene origin (ej: Postman, llamadas internas) o está permitido
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+            callback(null, true)
+        } else {
+            callback(new Error('Bloqueado por CORS'))
+        }
+    },
+    credentials: true
+}))
+
+// Habilitar pre-flight para todas las rutas
+app.options('*', cors())
+
 app.use(morgan('dev'))
 
 // Payments router must be mounted BEFORE express.json() so the webhook
@@ -43,7 +66,11 @@ app.get('/health', (_req, res) => {
 
 // ── Socket.io ─────────────────────────────────────────────────────────────────
 const io = new Server(httpServer, {
-    cors: { origin: CLIENT_URL, credentials: true },
+    cors: {
+        // Socket.io acepta nativamente un array de strings para manejar los orígenes
+        origin: ALLOWED_ORIGINS,
+        credentials: true
+    },
 })
 
 // Auth middleware: verifica el JWT enviado en el handshake
