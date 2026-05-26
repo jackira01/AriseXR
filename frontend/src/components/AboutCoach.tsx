@@ -1,11 +1,5 @@
 'use client'
-
-import Image from 'next/image'
-import dynamic from 'next/dynamic'
-
 // Cargamos de forma dinámica el reproductor sin SSR
-const ReactPlayer = dynamic(() => import('react-player'), { ssr: false })
-
 export default function AboutCoach() {
     const socialLinks = [
         { platform: 'TikTok', handle: '@arisedxr', url: 'https://www.tiktok.com/@arisedxr' },
