@@ -32,7 +32,7 @@ export default function CuentaClient() {
     const TABS = isAdmin ? ADMIN_TABS : USER_TABS
 
     const [activeTab, setActiveTab] = useState<Tab>('seguimiento')
-    const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [sidebarOpen, setSidebarOpen] = useState(true)
     const [selectedUser, setSelectedUser] = useState<AdminUserSummary | null>(null)
 
     const [hasPlanStatus, setHasPlanStatus] = useState<boolean>(true)
@@ -65,7 +65,7 @@ export default function CuentaClient() {
 
     function handleTabClick(id: Tab) {
         setActiveTab(id)
-        setSidebarOpen(false)
+        // setSidebarOpen(false)
     }
 
     const needsCTA = !isAdmin && !hasPlanStatus && !hasInvoices && !loadingProfile
@@ -101,33 +101,22 @@ export default function CuentaClient() {
                 </div>
             </header>
 
+            {/* ── Sidebar toggle button ──────────────────────────────────────── */}
+            <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="fixed right-6 top-1/2 -translate-y-1/2 z-35 w-10 h-10 rounded-full flex items-center justify-center bg-red-950/60 border border-red-800/40 text-[rgba(255,210,210,.7)] hover:text-red-400 hover:bg-red-950/80 hover:border-red-700/60 transition-all duration-200"
+                aria-label={sidebarOpen ? 'Cerrar sidebar' : 'Abrir sidebar'}
+            >
+                <svg className={`w-5 h-5 transition-transform duration-300 ${sidebarOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M15 19l-7-7 7-7" />
+                </svg>
+            </button>
+
             {/* ── Sidebar overlay ──────────────────────────────────────── */}
-            {/*
-             * The sidebar div itself is used as the hover zone.
-             * Closed: translateX(calc(-100% + 1.5rem)) → only 24 px peek from left edge.
-             * Open:   translateX(0) → full 256 px panel visible.
-             */}
             <div
                 className="fixed left-0 top-16 bottom-0 z-40 w-64 flex flex-col bg-[#0c0101]/95 backdrop-blur-xl border-r border-red-800/25 shadow-[4px_0_40px_rgba(0,0,0,.55)] transition-transform duration-300 ease-out"
-                style={{ transform: sidebarOpen ? 'translateX(0)' : 'translateX(calc(-100% + 1.5rem))' }}
-                onMouseEnter={() => setSidebarOpen(true)}
-                onMouseLeave={() => setSidebarOpen(false)}
+                style={{ transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)' }}
             >
-                {/* Red indicator strip shown when peeking */}
-                <div
-                    className={`absolute right-0 top-1/2 -translate-y-1/2 w-[2px] h-20 bg-red-600/45 rounded-full transition-opacity duration-200 ${sidebarOpen ? 'opacity-0' : 'opacity-100'}`}
-                />
-
-                {/* Close (×) button */}
-                <button
-                    onClick={() => setSidebarOpen(false)}
-                    className="absolute top-4 right-3 w-7 h-7 rounded-full flex items-center justify-center text-[rgba(255,210,210,.35)] hover:text-red-400 hover:bg-red-950/50 transition-all duration-200"
-                    aria-label="Cerrar menú"
-                >
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
-                </button>
 
                 {/* Logo / label */}
                 <div className="px-6 pt-6 pb-5 border-b border-red-800/15 shrink-0">

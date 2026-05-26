@@ -7,7 +7,7 @@ import { useSession } from 'next-auth/react'
 
 const NAV_LINKS = [
     { label: 'Precios', href: '#precios' },
-    { label: 'Sobre Nosotros', href: '#sobre-nosotros' },
+    { label: 'Sobre mi', href: '#sobre-coach' },
 ]
 
 export default function Header() {

@@ -6,6 +6,7 @@ import ReviewCarousel from '@/components/ReviewCarousel'
 import RuneBackground from '@/components/RuneBackground'
 import Starfield from '@/components/Starfield'
 import PricingSection from '@/components/PricingSection'
+import AboutCoach from '@/components/AboutCoach'
 
 const TOPIC_CATEGORIES = [
     {
@@ -133,6 +134,8 @@ export default function HomePage() {
                     <ReviewCarousel />
                 </div>
             </section>
+
+            <AboutCoach />
 
             {/* ══════════════════ REDES SOCIALES ══════════════════ */}
             <section className="relative z-[2] py-16 md:py-28 px-5 sm:px-8 lg:px-13">
