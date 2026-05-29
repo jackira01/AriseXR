@@ -38,9 +38,18 @@ export interface UserProfile extends AdminUserSummary {
         categoryName?: string
         status: 'pendiente' | 'en-progreso' | 'completado'
     }>
+    tools?: ITool[]
     createdAt?: string
     updatedAt?: string
     tareas?: ITarea[]
+}
+
+export interface ITool {
+    _id?: string
+    name: string
+    topicId: string
+    active: boolean
+    addedAt?: string
 }
 
 const API_BASE = '/api'
@@ -506,6 +515,85 @@ export async function updateMiTarea(
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ estado }),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+// ── Herramientas (Tools) ──────────────────────────────────────────────────────
+
+export async function adminGetAllTools(token: string): Promise<ITool[]> {
+    const response = await fetch(`${API_BASE}/admin/herramientas`, {
+        headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+export async function adminGetUserTools(
+    token: string,
+    userId: string
+): Promise<ITool[]> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/herramientas`, {
+        headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+export async function adminAddToolToUser(
+    token: string,
+    userId: string,
+    topicId: string,
+    name: string
+): Promise<{ tools: ITool[] }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/herramientas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ topicId, name }),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+export async function adminUpdateToolStatus(
+    token: string,
+    userId: string,
+    toolId: string,
+    active: boolean
+): Promise<{ tools: ITool[] }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/herramientas/${toolId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ active }),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+export async function adminDeleteTool(
+    token: string,
+    userId: string,
+    toolId: string
+): Promise<{ tools: ITool[] }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/herramientas/${toolId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
     })
     if (!response.ok) {
         const err = await response.json().catch(() => ({})) as { message?: string }

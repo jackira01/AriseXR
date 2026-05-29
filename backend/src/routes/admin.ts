@@ -352,4 +352,119 @@ router.patch('/users/:userId/topic-status/:topicId', authMiddleware, async (req:
     }
 })
 
+// GET /api/admin/herramientas — obtener todos los topics de la categoría "Herramientas"
+router.get('/herramientas', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const category = await Category.findOne({ name: 'Herramientas' })
+        if (!category) {
+            res.status(404).json({ message: 'Categoría Herramientas no encontrada' })
+            return
+        }
+        const tools = await Topic.find({ categoryId: category._id }).lean()
+        res.json(tools)
+    } catch {
+        res.status(500).json({ message: 'Error interno del servidor' })
+    }
+})
+
+// GET /api/admin/users/:userId/herramientas — obtener las herramientas del usuario
+router.get('/users/:userId/herramientas', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const user = await User.findById(req.params.userId).select('tools').lean()
+        if (!user) {
+            res.status(404).json({ message: 'Usuario no encontrado' })
+            return
+        }
+        res.json(user.tools ?? [])
+    } catch {
+        res.status(500).json({ message: 'Error interno del servidor' })
+    }
+})
+
+// POST /api/admin/users/:userId/herramientas — agregar una herramienta al usuario
+router.post('/users/:userId/herramientas', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const { topicId, name } = req.body as { topicId: string; name: string }
+        if (!topicId || !name?.trim()) {
+            res.status(400).json({ message: 'topicId y name son requeridos' })
+            return
+        }
+
+        const user = await User.findById(req.params.userId)
+        if (!user) {
+            res.status(404).json({ message: 'Usuario no encontrado' })
+            return
+        }
+
+        const alreadyExists = user.tools.some((t: any) => t.topicId === topicId)
+        if (alreadyExists) {
+            res.status(409).json({ message: 'El usuario ya tiene esta herramienta' })
+            return
+        }
+
+        user.tools.push({ name: name.trim(), topicId, active: true, addedAt: new Date() } as any)
+        await user.save()
+        res.status(201).json({ tools: user.tools })
+    } catch {
+        res.status(500).json({ message: 'Error interno del servidor' })
+    }
+})
+
+// PATCH /api/admin/users/:userId/herramientas/:toolId — actualizar estado activo/inactivo
+router.patch('/users/:userId/herramientas/:toolId', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const { active } = req.body as { active: boolean }
+        if (active === undefined) {
+            res.status(400).json({ message: 'El campo active es requerido' })
+            return
+        }
+
+        const user = await User.findById(req.params.userId)
+        if (!user) {
+            res.status(404).json({ message: 'Usuario no encontrado' })
+            return
+        }
+
+        const tool = user.tools.find((t: any) => t._id?.toString() === req.params.toolId)
+        if (!tool) {
+            res.status(404).json({ message: 'Herramienta no encontrada' })
+            return
+        }
+
+        tool.active = active
+        await user.save()
+        res.json({ tools: user.tools })
+    } catch {
+        res.status(500).json({ message: 'Error interno del servidor' })
+    }
+})
+
+// DELETE /api/admin/users/:userId/herramientas/:toolId — eliminar una herramienta del usuario
+router.delete('/users/:userId/herramientas/:toolId', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const user = await User.findById(req.params.userId)
+        if (!user) {
+            res.status(404).json({ message: 'Usuario no encontrado' })
+            return
+        }
+
+        const idx = user.tools.findIndex((t: any) => t._id?.toString() === req.params.toolId)
+        if (idx === -1) {
+            res.status(404).json({ message: 'Herramienta no encontrada' })
+            return
+        }
+
+        user.tools.splice(idx, 1)
+        await user.save()
+        res.json({ tools: user.tools })
+    } catch {
+        res.status(500).json({ message: 'Error interno del servidor' })
+    }
+})
+
 export default router

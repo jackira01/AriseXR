@@ -26,6 +26,13 @@ export interface ITarea {
     estado: 'pendiente' | 'completada'
 }
 
+export interface ITool {
+    name: string
+    topicId: string
+    active: boolean
+    addedAt: Date
+}
+
 export interface IUser extends Document {
     name: string
     email: string
@@ -45,6 +52,7 @@ export interface IUser extends Document {
         categoryName?: string
         status: 'pendiente' | 'en-progreso' | 'completado'
     }[]
+    tools: ITool[]
     invoices: IInvoice[]
     tareas: ITarea[]
     createdAt: Date
@@ -93,6 +101,13 @@ const TareaSchema = new Schema({
     },
 })
 
+const ToolSchema = new Schema({
+    name: { type: String, required: true, trim: true },
+    topicId: { type: String, required: true },
+    active: { type: Boolean, default: true },
+    addedAt: { type: Date, default: Date.now },
+})
+
 const UserSchema = new Schema<IUser>(
     {
         name: { type: String, required: true, trim: true },
@@ -129,6 +144,7 @@ const UserSchema = new Schema<IUser>(
         sessions: { type: [SessionSchema], default: [] },
         invoices: { type: [InvoiceSchema], default: [] },
         tareas: { type: [TareaSchema], default: [] },
+        tools: { type: [ToolSchema], default: [] },
     },
     { timestamps: true }
 )

@@ -17,10 +17,15 @@ import {
     adminUpdateTarea,
     adminDeleteTarea,
     updateMiTarea,
+    adminGetAllTools,
+    adminGetUserTools,
+    adminUpdateToolStatus,
+    adminAddToolToUser,
     type CatalogCategory,
     type UserProfile,
     type UserSession,
     type ITarea,
+    type ITool,
 } from '@/lib/api'
 
 // ── Plan base por defecto (en una app real vendría del perfil del usuario) ──────────
@@ -141,6 +146,12 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
     const [tareaDeleteConfirmId, setTareaDeleteConfirmId] = useState<string | null>(null)
     const [tareaStatusDropdown, setTareaStatusDropdown] = useState<string | null>(null)
 
+    // ── Herramientas state ────────────────────────────────────────────────
+    const [allTools, setAllTools] = useState<ITool[]>([])
+    const [userTools, setUserTools] = useState<ITool[]>([])
+    const [loadingTools, setLoadingTools] = useState(false)
+    const [updatingTool, setUpdatingTool] = useState<string | null>(null)
+
     // Close dropdown when clicking outside
     useEffect(() => {
         if (!openDropdown && !tareaStatusDropdown) return
@@ -187,6 +198,23 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                 .finally(() => setLoadingAdmin(false))
         }
     }, [adminUserId, token])
+
+    // ── Load all tools and user tools ──────────────────────────────────────
+    useEffect(() => {
+        if (!token || !isAdmin) return
+
+        setLoadingTools(true)
+        Promise.all([
+            adminGetAllTools(token),
+            adminUserId ? adminGetUserTools(token, adminUserId) : Promise.resolve([]),
+        ])
+            .then(([all, user]) => {
+                setAllTools(all)
+                setUserTools(user)
+            })
+            .catch(() => { /* silently ignore */ })
+            .finally(() => setLoadingTools(false))
+    }, [token, isAdmin, adminUserId])
 
     const planCfg = userProfile?.plan
         ? (PLAN_CONFIG[userProfile.plan] ?? CURRENT_PLAN)
@@ -490,6 +518,32 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
         } catch { /* silently ignore inline errors */ }
     }
 
+    // ── Herramientas handlers ─────────────────────────────────────────────
+    async function handleToggleTool(toolId: string, currentActive: boolean) {
+        if (!adminUserId) return
+        setUpdatingTool(toolId)
+        try {
+            // Encontrar si el usuario ya tiene esta herramienta
+            const existingTool = userTools.find(t => t._id === toolId)
+
+            if (existingTool) {
+                // Si existe, actualizar su estado
+                const result = await adminUpdateToolStatus(token, adminUserId, toolId, !currentActive)
+                setUserTools(result.tools)
+            } else {
+                // Si no existe, crear uno nuevo con estado activo
+                const toolData = allTools.find(t => t._id === toolId)
+                if (toolData) {
+                    const result = await adminAddToolToUser(token, adminUserId, toolId, toolData.name)
+                    setUserTools(result.tools)
+                }
+            }
+        } catch { /* silently ignore */ }
+        finally {
+            setUpdatingTool(null)
+        }
+    }
+
     return (
         <>
             {isAdmin && !adminUserId ? (
@@ -589,17 +643,57 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                             </div>
                         </div>
 
-                        {/* Weekly breakdown */}
+                        {/* Weekly breakdown — replaced with Tools */}
                         <div className="bg-red-950/30 backdrop-blur-sm border border-red-800/20 rounded-2xl p-6 flex flex-col gap-3">
-                            <span className="font-primary text-[.82rem] font-semibold text-[rgba(255,210,210,.8)]">Actividad Semanal</span>
-                            {computedWeeks.map((w) => (
-                                <div key={w.label} className="flex items-center justify-between px-3 py-2 rounded-lg bg-red-950/40 border border-red-800/20 hover:border-red-700/30 transition-colors">
-                                    <span className="font-primary text-[.75rem] text-[rgba(255,210,210,.6)]">{w.label}</span>
-                                    <span className={`font-primary text-[.78rem] font-bold ${w.done > 0 ? 'text-rose-400' : 'text-[rgba(255,210,210,.3)]'}`}>
-                                        {w.done}h
-                                    </span>
+                            <span className="font-primary text-[.82rem] font-semibold text-[rgba(255,210,210,.8)]">Herramientas</span>
+                            {loadingTools ? (
+                                <p className="font-primary text-[.75rem] text-[rgba(255,210,210,.4)]">Cargando herramientas...</p>
+                            ) : allTools.length === 0 ? (
+                                <p className="font-primary text-[.75rem] text-[rgba(255,210,210,.3)]">Sin herramientas disponibles</p>
+                            ) : (
+                                <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-2">
+                                    {allTools.map((tool) => {
+                                        // Encontrar si el usuario tiene esta herramienta y su estado
+                                        const userTool = userTools.find(ut => ut.topicId === tool._id)
+                                        const isActive = userTool?.active ?? false
+                                        const toolId = userTool?._id ?? tool._id
+
+                                        return (
+                                            <div
+                                                key={tool._id}
+                                                className="flex items-center justify-between px-3 py-2 rounded-lg bg-red-950/40 border border-red-800/20 hover:border-red-700/30 transition-colors"
+                                            >
+                                                <span className="font-primary text-[.75rem] text-[rgba(255,210,210,.6)]">{tool.name}</span>
+                                                {/* Toggle solo para admin */}
+                                                {isAdmin && adminUserId && (
+                                                    <button
+                                                        onClick={() => handleToggleTool(toolId, isActive)}
+                                                        disabled={updatingTool === toolId}
+                                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isActive
+                                                            ? 'bg-green-600/40 border border-green-500/40'
+                                                            : 'bg-red-950/60 border border-red-800/30'
+                                                            } ${updatingTool === toolId ? 'opacity-50' : ''}`}
+                                                    >
+                                                        <span
+                                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-5' : 'translate-x-1'
+                                                                }`}
+                                                        />
+                                                    </button>
+                                                )}
+                                                {/* Indicador de estado para usuarios no admin */}
+                                                {(!isAdmin || !adminUserId) && (
+                                                    <span className={`font-primary text-[.65rem] font-bold px-2 py-0.5 rounded-full border ${isActive
+                                                        ? 'bg-green-500/15 text-green-400 border-green-500/30'
+                                                        : 'bg-red-950/40 text-[rgba(255,210,210,.3)] border-red-800/20'
+                                                        }`}>
+                                                        {isActive ? 'Activa' : 'Inactiva'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </div>
 
@@ -668,17 +762,19 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                 (userProfile?.topics ?? []).map((t) => [t.name, t])
                             )
                             const displayCategories: { title: string; topics: { _id?: string; name: string; status: string }[] }[] =
-                                catalog.map((cat) => ({
-                                    title: cat.name,
-                                    topics: cat.topics.map((catalogTopic) => {
-                                        const userTopic = userTopicsMap.get(catalogTopic.name)
-                                        return {
-                                            _id: userTopic?._id,
-                                            name: catalogTopic.name,
-                                            status: userTopic?.status ?? 'pendiente',
-                                        }
-                                    }),
-                                }))
+                                catalog
+                                    .filter(cat => cat.name !== 'Herramientas')  // Excluir categoría Herramientas
+                                    .map((cat) => ({
+                                        title: cat.name,
+                                        topics: cat.topics.map((catalogTopic) => {
+                                            const userTopic = userTopicsMap.get(catalogTopic.name)
+                                            return {
+                                                _id: userTopic?._id,
+                                                name: catalogTopic.name,
+                                                status: userTopic?.status ?? 'pendiente',
+                                            }
+                                        }),
+                                    }))
 
                             return (
                                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
