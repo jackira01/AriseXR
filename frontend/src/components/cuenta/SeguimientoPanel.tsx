@@ -656,7 +656,7 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                         // Encontrar si el usuario tiene esta herramienta y su estado
                                         const userTool = userTools.find(ut => ut.topicId === tool._id)
                                         const isActive = userTool?.active ?? false
-                                        const toolId = userTool?._id ?? tool._id
+                                        const toolId = userTool?._id ?? tool._id ?? ''
 
                                         return (
                                             <div
