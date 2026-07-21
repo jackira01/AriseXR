@@ -20,6 +20,20 @@ const PLANS = [
         features: ['Análisis de errores', 'Retroalimentación inicial'],
     },
     {
+        name: 'Gold Pack',
+        slug: 'gold' as PlanSlug,
+        price: '$99 USD',
+        highlight: false,
+        current: false,
+        rankImg: '/ranks/gold.webp',
+        rankGlow: '#ffcf4d',
+        detail1: '6 hrs en total',
+        detail2: '3 herramientas',
+        detail3: 'Personalizado',
+        priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_GOLD ?? '',
+        features: ['Retroalimentación personalizada', 'Coach en vivo', 'Entrenamiento personalizado'],
+    },
+    {
         name: 'Silver Pack',
         slug: 'silver' as PlanSlug,
         price: '$125 USD',
@@ -75,6 +89,20 @@ const PLANS = [
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_CHALLENGER ?? '',
         features: ['Retroalimentación personalizada', 'Coach en vivo', 'Entrenamiento personalizado', 'Análisis previo', 'Videos personalizados de mejoras', 'Teorías aplicadas al juego', 'Práctica guiada', 'Entendimiento analítico pre y post game'],
     },
+    {
+        name: 'No Life Pack',
+        slug: 'no_life' as PlanSlug,
+        price: '$2,499 USD',
+        highlight: false,
+        current: false,
+        rankImg: '/ranks/no_life.jpg',
+        rankGlow: '#c084fc',
+        detail1: '2–4 hrs/día',
+        detail2: '1 mes',
+        detail3: 'Todas las herramientas',
+        priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_NOLIFE ?? '',
+        features: ['Sesión diaria garantizada', 'Todo lo del Chall Pack incluido', 'Seguimiento y ajuste día a día', 'Acceso prioritario directo contigo'],
+    },
 ]
 
 export default function PaquetesPanel({ adminUserId, selectedUserName, selectedUserEmail }: { adminUserId?: string; selectedUserName?: string; selectedUserEmail?: string }) {
@@ -108,6 +136,23 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
             })
         }
     }, [adminUserId, token])
+
+    useEffect(() => {
+        const resetLoadingState = () => setLoadingPriceId(null)
+
+        window.addEventListener('pageshow', resetLoadingState)
+        window.addEventListener('focus', resetLoadingState)
+        window.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                resetLoadingState()
+            }
+        })
+
+        return () => {
+            window.removeEventListener('pageshow', resetLoadingState)
+            window.removeEventListener('focus', resetLoadingState)
+        }
+    }, [])
 
     // The user's active plan
     const currentPlan = PLANS.find((p) =>
@@ -332,10 +377,9 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                                         try {
                                             setLoadingPriceId(plan.priceId)
                                             const url = await createCheckoutSession(token, userId, userEmail, plan.priceId)
-                                            window.location.href = url
+                                            window.location.assign(url)
                                         } catch (err) {
                                             console.error('[Stripe] Error al iniciar el pago:', err)
-                                        } finally {
                                             setLoadingPriceId(null)
                                         }
                                     }}

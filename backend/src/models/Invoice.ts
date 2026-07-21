@@ -3,7 +3,7 @@ import mongoose, { Schema, type Document } from 'mongoose'
 export interface IInvoice extends Document {
     userId: mongoose.Types.ObjectId
     stripeSessionId: string
-    plan: 'intro' | 'silver' | 'esmerald' | 'diamond' | 'challenger'
+    plan: 'intro' | 'silver' | 'gold' | 'esmerald' | 'diamond' | 'no_life' | 'challenger'
     planLabel: string
     description: string
     amount: number
@@ -24,7 +24,7 @@ const InvoiceSchema = new Schema<IInvoice>(
         stripeSessionId: { type: String, required: true, unique: true },
         plan: {
             type: String,
-            enum: ['intro', 'silver', 'esmerald', 'diamond', 'challenger'],
+            enum: ['intro', 'silver', 'gold', 'esmerald', 'diamond', 'no_life', 'challenger'],
             required: true,
         },
         planLabel: { type: String, required: true },

@@ -247,9 +247,9 @@ router.patch('/users/:userId/plan', authMiddleware, async (req: AuthRequest, res
     if (!requireAdmin(req, res)) return
     try {
         const { plan } = req.body as { plan: string | null }
-        const validPlans = ['intro', 'silver', 'esmerald', 'diamond', 'challenger', null]
+        const validPlans = ['intro', 'silver', 'gold', 'esmerald', 'diamond', 'no_life', 'challenger', null]
         if (!validPlans.includes(plan)) {
-            res.status(400).json({ message: 'Plan inválido. Usa: intro, silver, esmerald, diamond, challenger o null' })
+            res.status(400).json({ message: 'Plan inválido. Usa: intro, silver, gold, esmerald, diamond, no_life, challenger o null' })
             return
         }
         const user = await User.findByIdAndUpdate(

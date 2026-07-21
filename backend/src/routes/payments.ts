@@ -12,8 +12,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
 const PLAN_LABELS: Record<string, string> = {
     intro: 'Intro Pack',
     silver: 'Silver Pack',
+    gold: 'Gold Pack',
     esmerald: 'Esmerald Pack',
     diamond: 'Diamond Pack',
+    no_life: 'No Life Pack',
     challenger: 'Chall Pack',
 }
 
@@ -22,8 +24,10 @@ function buildPricePlanMap(): Record<string, string> {
     const entries: [string, string][] = [
         [process.env.STRIPE_PRICE_INTRO ?? '', 'intro'],
         [process.env.STRIPE_PRICE_SILVER ?? '', 'silver'],
+        [process.env.STRIPE_PRICE_GOLD ?? '', 'gold'],
         [process.env.STRIPE_PRICE_ESMERALD ?? '', 'esmerald'],
         [process.env.STRIPE_PRICE_DIAMOND ?? '', 'diamond'],
+        [process.env.STRIPE_PRICE_NOLIFE ?? '', 'no_life'],
         [process.env.STRIPE_PRICE_CHALLENGER ?? '', 'challenger'],
     ]
     for (const [priceId, plan] of entries) {
@@ -121,7 +125,7 @@ router.post(
             }
 
             const userId = session.client_reference_id
-            const plan = session.metadata?.plan as 'silver' | 'esmerald' | 'diamond' | 'challenger' | undefined
+            const plan = session.metadata?.plan as 'intro' | 'silver' | 'gold' | 'esmerald' | 'diamond' | 'no_life' | 'challenger' | undefined
 
             if (userId && plan) {
                 try {
