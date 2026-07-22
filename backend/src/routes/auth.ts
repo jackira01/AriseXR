@@ -72,32 +72,47 @@ router.post('/register', async (req: Request, res: Response) => {
         password: string
     }
 
+    console.log('[AUTH][REGISTER] Petición recibida', {
+        email,
+        name,
+        hasPassword: Boolean(password),
+    })
+
     if (!name || !email || !password) {
+        console.log('[AUTH][REGISTER] Datos incompletos', { name: Boolean(name), email: Boolean(email), password: Boolean(password) })
         res.status(400).json({ message: 'Todos los campos son requeridos' })
         return
     }
 
     try {
+        console.log('[AUTH][REGISTER] Inicio procesamiento', { email, name })
+
         // Rechazar si ya existe un usuario verificado con ese email
         const existing = await User.findOne({ email, emailVerified: true })
+        console.log('[AUTH][REGISTER] Usuario verificado existente:', !!existing)
         if (existing) {
+            console.log('[AUTH][REGISTER] Conflicto: email ya registrado')
             res.status(409).json({ message: 'El email ya está registrado' })
             return
         }
 
         const code = generateCode()
         const expires = new Date(Date.now() + 10 * 60 * 1000) // 10 minutos
+        console.log('[AUTH][REGISTER] Código generado:', code)
 
         // Crear o actualizar usuario pendiente de verificación
         const pending = await User.findOne({ email })
         if (pending) {
+            console.log('[AUTH][REGISTER] Actualizando usuario pendiente existente')
             pending.name = name
             pending.password = password
             pending.provider = 'credentials'
             pending.verificationCode = code
             pending.verificationCodeExpires = expires
             await pending.save()
+            console.log('[AUTH][REGISTER] Usuario pendiente actualizado')
         } else {
+            console.log('[AUTH][REGISTER] Creando usuario pendiente nuevo')
             await User.create({
                 name,
                 email,
@@ -107,10 +122,22 @@ router.post('/register', async (req: Request, res: Response) => {
                 verificationCode: code,
                 verificationCodeExpires: expires,
             })
+            console.log('[AUTH][REGISTER] Usuario pendiente creado')
         }
 
+        console.log('[AUTH][REGISTER] Preparando envío Mailjet', {
+            email,
+            code,
+            expires,
+        })
+        console.log('[AUTH][REGISTER] Mailjet config:', {
+            hasPublicKey: !!process.env.MJ_APIKEY_PUBLIC,
+            hasPrivateKey: !!process.env.MJ_APIKEY_PRIVATE,
+            sender: process.env.MJ_SENDER_EMAIL,
+        })
+
         const mailjet = getMailjet()
-        await mailjet.post('send', { version: 'v3.1' }).request({
+        const mailResponse = await mailjet.post('send', { version: 'v3.1' }).request({
             Messages: [
                 {
                     From: { Email: process.env.MJ_SENDER_EMAIL as string, Name: 'Arise Coach' },
@@ -128,9 +155,11 @@ router.post('/register', async (req: Request, res: Response) => {
             ],
         })
 
+        console.log('[AUTH][REGISTER] Mailjet response:', mailResponse?.body)
+        console.log('[AUTH][REGISTER] Respuesta enviada al cliente', { status: 200 })
         res.json({ message: 'Código enviado' })
     } catch (err) {
-        console.error('Error en registro:', err)
+        console.error('[AUTH][REGISTER] Error en registro:', err)
         res.status(500).json({ message: 'Error interno del servidor' })
     }
 })
@@ -145,16 +174,22 @@ router.post('/send-verification', async (req: Request, res: Response) => {
     }
 
     try {
+        console.log('[AUTH][SEND-VERIFICATION] Petición recibida', { email })
+
         const existing = await User.findOne({ email, emailVerified: true })
+        console.log('[AUTH][SEND-VERIFICATION] Usuario verificado existente:', !!existing)
         if (existing) {
+            console.log('[AUTH][SEND-VERIFICATION] Conflicto: email ya registrado')
             res.status(409).json({ message: 'El email ya está registrado' })
             return
         }
 
         const code = generateCode()
         const expires = new Date(Date.now() + 10 * 60 * 1000) // 10 minutos
+        console.log('[AUTH][SEND-VERIFICATION] Código generado:', code)
 
         // Guardar temporalmente el código en un doc sin contraseña (o actualizar si ya existe pendiente)
+        console.log('[AUTH][SEND-VERIFICATION] Guardando código temporal')
         await User.findOneAndUpdate(
             { email },
             {
@@ -164,9 +199,16 @@ router.post('/send-verification', async (req: Request, res: Response) => {
             },
             { upsert: true, new: true }
         )
+        console.log('[AUTH][SEND-VERIFICATION] Código temporal guardado')
+
+        console.log('[AUTH][SEND-VERIFICATION] Mailjet config:', {
+            hasPublicKey: !!process.env.MJ_APIKEY_PUBLIC,
+            hasPrivateKey: !!process.env.MJ_APIKEY_PRIVATE,
+            sender: process.env.MJ_SENDER_EMAIL,
+        })
 
         const mailjet = getMailjet()
-        await mailjet.post('send', { version: 'v3.1' }).request({
+        const mailResponse = await mailjet.post('send', { version: 'v3.1' }).request({
             Messages: [
                 {
                     From: { Email: process.env.MJ_SENDER_EMAIL as string, Name: 'Arise Coach' },
@@ -184,9 +226,11 @@ router.post('/send-verification', async (req: Request, res: Response) => {
             ],
         })
 
+        console.log('[AUTH][SEND-VERIFICATION] Mailjet response:', mailResponse?.body)
+        console.log('[AUTH][SEND-VERIFICATION] Respuesta enviada al cliente', { status: 200 })
         res.json({ message: 'Código enviado' })
     } catch (err) {
-        console.error('Error enviando código:', err)
+        console.error('[AUTH][SEND-VERIFICATION] Error enviando código:', err)
         res.status(500).json({ message: 'Error enviando el código de verificación' })
     }
 })
@@ -194,39 +238,48 @@ router.post('/send-verification', async (req: Request, res: Response) => {
 // POST /api/auth/verify-code  — verifica el código y completa el registro Google
 router.post('/verify-code', async (req: Request, res: Response) => {
     const { email, code, name } = req.body as { email: string; code: string; name: string }
+    console.log('[AUTH][VERIFY-CODE] Petición recibida', { email, name, codeLength: code?.length })
 
     if (!email || !code || !name) {
+        console.log('[AUTH][VERIFY-CODE] Datos incompletos', { email: Boolean(email), code: Boolean(code), name: Boolean(name) })
         res.status(400).json({ message: 'Email, nombre y código son requeridos' })
         return
     }
 
     try {
         const user = await User.findOne({ email })
+        console.log('[AUTH][VERIFY-CODE] Usuario encontrado', { found: Boolean(user), hasCode: Boolean(user?.verificationCode) })
 
         if (!user || !user.verificationCode || !user.verificationCodeExpires) {
+            console.log('[AUTH][VERIFY-CODE] Código no encontrado para el email')
             res.status(400).json({ message: 'Código no encontrado. Solicita uno nuevo.' })
             return
         }
 
         if (user.verificationCodeExpires < new Date()) {
+            console.log('[AUTH][VERIFY-CODE] Código expirado')
             res.status(400).json({ message: 'El código ha expirado. Solicita uno nuevo.' })
             return
         }
 
         if (user.verificationCode !== code) {
+            console.log('[AUTH][VERIFY-CODE] Código incorrecto', { providedCode: code, storedCode: user.verificationCode })
             res.status(400).json({ message: 'Código incorrecto' })
             return
         }
 
         // Completar el registro
+        console.log('[AUTH][VERIFY-CODE] Código correcto, completando registro')
         user.name = name
         user.emailVerified = true
         user.verificationCode = null
         user.verificationCodeExpires = null
         await user.save()
+        console.log('[AUTH][VERIFY-CODE] Usuario verificado correctamente')
 
         res.json({ message: 'Email verificado correctamente' })
-    } catch {
+    } catch (err) {
+        console.error('[AUTH][VERIFY-CODE] Error verificando código:', err)
         res.status(500).json({ message: 'Error interno del servidor' })
     }
 })

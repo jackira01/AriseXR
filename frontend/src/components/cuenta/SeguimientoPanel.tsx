@@ -27,6 +27,7 @@ import {
     type ITarea,
     type ITool,
 } from '@/lib/api'
+import { getPlanDefinition } from '@/lib/plans'
 
 // ── Plan base por defecto (en una app real vendría del perfil del usuario) ──────────
 const CURRENT_PLAN = {
@@ -162,8 +163,8 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
 
     // ── Computed values (admin vs static) ────────────────────────────────
     const PLAN_CONFIG: Record<string, { name: string; totalHours: number }> = {
-        silver: { name: 'Silver Pack', totalHours: 8 },
-        esmerald: { name: 'Esmerald Pack', totalHours: 12 },
+        silver: { name: 'Silver Pack', totalHours: 4 },
+        esmerald: { name: 'Esmerald Pack', totalHours: 10 },
         diamond: { name: 'Diamond Pack', totalHours: 18 },
         challenger: { name: 'Chall Pack', totalHours: 32 },
     }
@@ -217,7 +218,7 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
     }, [token, isAdmin, adminUserId])
 
     const planCfg = userProfile?.plan
-        ? (PLAN_CONFIG[userProfile.plan] ?? CURRENT_PLAN)
+        ? (PLAN_CONFIG[userProfile.plan] ?? getPlanDefinition(userProfile.plan) ? { name: getPlanDefinition(userProfile.plan)!.name, totalHours: getPlanDefinition(userProfile.plan)!.totalHours } : CURRENT_PLAN)
         : CURRENT_PLAN
 
     const baseHours = planCfg.totalHours ?? 0

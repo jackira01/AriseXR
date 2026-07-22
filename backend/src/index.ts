@@ -54,6 +54,7 @@ app.use('/api/payments', paymentsRoutes)
 app.use(express.json())
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+console.log('[BOOT] Montando rutas de autenticación')
 app.use('/api/auth', authRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/admin', adminRoutes)
