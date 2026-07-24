@@ -3,17 +3,14 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { createCheckoutSession } from '@/lib/api'
-import { PLAN_DEFINITIONS } from '@/lib/plans'
-
-const PLANS = PLAN_DEFINITIONS.map((plan) => ({
-    ...plan,
-}))
+import { createCheckoutSession, getPlansCatalog, type PlanCatalogItem } from '@/lib/api'
+import { loadPlanCatalog } from '@/lib/plans'
 
 export default function PricingSection() {
     const { data: session } = useSession()
     const router = useRouter()
     const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null)
+    const [plans, setPlans] = useState<PlanCatalogItem[]>([])
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 })
 
     useEffect(() => {
@@ -37,6 +34,15 @@ export default function PricingSection() {
         updateCountdown()
         const interval = setInterval(updateCountdown, 1000)
         return () => clearInterval(interval)
+    }, [])
+
+    useEffect(() => {
+        void loadPlanCatalog()
+        void getPlansCatalog().then((data) => {
+            const activePlans = (data ?? []).filter((plan) => plan.active !== false)
+    
+            setPlans(activePlans)
+        })
     }, [])
 
     useEffect(() => {
@@ -156,17 +162,17 @@ export default function PricingSection() {
 
                 {/* Plan cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-3 items-stretch">
-                    {PLANS.map((plan, i) => (
+                    {plans.map((plan, i) => (
                         <div
-                            key={plan.name}
+                            key={plan.slug}
                             style={{ animationDelay: `${i * 100}ms` }}
-                            className={`relative flex flex-col rounded-2xl p-4 sm:p-6 lg:p-5 border transition-all duration-300 ${plan.highlight
+                            className={`relative flex flex-col rounded-2xl p-4 sm:p-6 lg:p-5 border transition-all duration-300 ${plan.slug === 'diamond'
                                 ? 'bg-linear-to-br from-red-800 to-red-600 border-red-500/40 shadow-[0_0_60px_rgba(180,20,20,.45)] lg:scale-100'
                                 : 'bg-red-950/30 backdrop-blur-sm border-red-800/20 hover:shadow-red-950/60 hover:border-red-700/35 shadow-[0_0_30px_rgba(0,0,0,.5)]'
                                 }`}
                         >
                             {plan.badge && (
-                                <div className={`absolute -top-3 left-1/2 -translate-x-1/2 font-primary text-[.62rem] font-black tracking-[3px] uppercase px-4 py-1 rounded-full shadow-lg whitespace-nowrap ${plan.highlight
+                                <div className={`absolute -top-3 left-1/2 -translate-x-1/2 font-primary text-[.62rem] font-black tracking-[3px] uppercase px-4 py-1 rounded-full shadow-lg whitespace-nowrap ${plan.slug === 'diamond'
                                     ? 'bg-linear-to-r from-cyan-400 to-blue-400 text-white'
                                     : 'bg-linear-to-r from-yellow-400 to-amber-400 text-[#1a0f35]'
                                     }`}>
@@ -177,35 +183,35 @@ export default function PricingSection() {
                             <div className="flex justify-center mb-3">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
-                                    src={plan.rankImg}
+                                    src={plan.rankImage ?? '/ranks/silver.webp'}
                                     alt={plan.name}
                                     className="w-12 lg:w-14 h-12 lg:h-14 object-contain"
-                                    style={{ filter: `drop-shadow(0 0 14px ${plan.rankGlow}88)` }}
+                                    style={{ filter: 'drop-shadow(0 0 14px rgba(255,255,255,0.3))' }}
                                 />
                             </div>
 
-                            <h3 className={`font-serif text-[1.15rem] lg:text-[1.1rem] font-bold uppercase text-center leading-tight mb-3 lg:mb-2 ${plan.highlight ? 'text-white' : 'text-[#fff0f0]'}`}>
+                            <h3 className={`font-serif text-[1.15rem] lg:text-[1.1rem] font-bold uppercase text-center leading-tight mb-3 lg:mb-2 ${plan.slug === 'diamond' ? 'text-white' : 'text-[#fff0f0]'}`}>
                                 {plan.name}
                             </h3>
 
-                            <div className={`flex flex-col gap-1 mb-2 lg:mb-1.5 ${plan.highlight ? 'text-red-100' : 'text-[rgba(255,210,210,.8)]'}`}>
-                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>⏱</span> {plan.detail1}</div>
-                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>🎮</span> {plan.detail2}</div>
-                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>📚</span> {plan.detail3} temas</div>
+                            <div className={`flex flex-col gap-1 mb-2 lg:mb-1.5 ${plan.slug === 'diamond' ? 'text-red-100' : 'text-[rgba(255,210,210,.8)]'}`}>
+                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>⏱</span> {plan.totalHours} hrs en total</div>
+                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>🎮</span> seguimiento activo</div>
+                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>📚</span> contenido guiado</div>
                             </div>
 
-                            <div className={`h-px mb-2 lg:mb-1.5 ${plan.highlight ? 'bg-white/20' : 'bg-red-800/25'}`} />
+                            <div className={`h-px mb-2 lg:mb-1.5 ${plan.slug === 'diamond' ? 'bg-white/20' : 'bg-red-800/25'}`} />
 
                             <div className="text-center mb-2 lg:mb-1.5">
-                                <span className={`font-primary text-[1.8rem] lg:text-[1.6rem] font-black leading-none ${plan.highlight ? 'text-white' : 'text-[#fff0f0]'}`}>{plan.price}</span>
+                                <span className={`font-primary text-[1.8rem] lg:text-[1.6rem] font-black leading-none ${plan.slug === 'diamond' ? 'text-white' : 'text-[#fff0f0]'}`}>${plan.price} USD</span>
                             </div>
 
-                            <p className={`font-primary text-[.75rem] lg:text-[.7rem] leading-relaxed text-center mb-3 lg:mb-2 ${plan.highlight ? 'text-white/75' : 'text-[rgba(255,200,200,.6)]'}`}>
+                            <p className={`font-primary text-[.75rem] lg:text-[.7rem] leading-relaxed text-center mb-3 lg:mb-2 ${plan.slug === 'diamond' ? 'text-white/75' : 'text-[rgba(255,200,200,.6)]'}`}>
                                 {plan.description}
                             </p>
 
                             <ul className="flex flex-col gap-1.5 mb-4 lg:mb-3 flex-1">
-                                {plan.features.map((feat) => (
+                                {(plan.features ?? []).map((feat) => (
                                     <li key={feat} className={`flex items-start gap-1.5 font-primary text-[.7rem] lg:text-[.65rem] leading-snug ${plan.highlight ? 'text-white/80' : 'text-[rgba(255,210,210,.75)]'}`}>
                                         <svg className={`w-4 h-4 shrink-0 mt-[1px] ${plan.highlight ? 'text-white/70' : 'text-red-400'}`} viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
@@ -216,14 +222,14 @@ export default function PricingSection() {
                             </ul>
 
                             <button
-                                onClick={() => handleCheckout(plan.priceId)}
+                                onClick={() => { plan.stripePriceId && handleCheckout(plan.stripePriceId) }}
                                 disabled={loadingPriceId !== null}
-                                className={`w-full py-2 lg:py-2.5 font-primary text-[.75rem] lg:text-[.7rem] font-bold tracking-[1.5px] lg:tracking-[2px] uppercase rounded-xl cursor-pointer transition-all duration-250 text-center disabled:opacity-60 disabled:cursor-not-allowed ${plan.highlight
+                                className={`w-full py-2 lg:py-2.5 font-primary text-[.75rem] lg:text-[.7rem] font-bold tracking-[1.5px] lg:tracking-[2px] uppercase rounded-xl cursor-pointer transition-all duration-250 text-center disabled:opacity-60 disabled:cursor-not-allowed ${plan.slug === 'diamond'
                                     ? 'bg-white text-red-700 hover:bg-white/90 shadow-[0_4px_20px_rgba(0,0,0,.2)]'
                                     : 'bg-linear-to-br from-red-700 to-red-500 text-white hover:brightness-110 shadow-[0_0_20px_rgba(180,20,20,.35)]'
                                     }`}
                             >
-                                {loadingPriceId === plan.priceId ? 'Redirigiendo...' : plan.cta}
+                                {loadingPriceId === (plan.stripePriceId ?? '') ? 'Redirigiendo...' : `Elegir ${plan.name}`}
                             </button>
                         </div>
                     ))}

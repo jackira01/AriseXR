@@ -26,8 +26,9 @@ import {
     type UserSession,
     type ITarea,
     type ITool,
+    type IPlanAssignment,
 } from '@/lib/api'
-import { getPlanDefinition } from '@/lib/plans'
+import { getPlanDefinition, loadPlanCatalog } from '@/lib/plans'
 
 // ── Plan base por defecto (en una app real vendría del perfil del usuario) ──────────
 const CURRENT_PLAN = {
@@ -161,13 +162,9 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
         return () => window.removeEventListener('click', handler)
     }, [openDropdown, tareaStatusDropdown])
 
-    // ── Computed values (admin vs static) ────────────────────────────────
-    const PLAN_CONFIG: Record<string, { name: string; totalHours: number }> = {
-        silver: { name: 'Silver Pack', totalHours: 4 },
-        esmerald: { name: 'Esmerald Pack', totalHours: 10 },
-        diamond: { name: 'Diamond Pack', totalHours: 18 },
-        challenger: { name: 'Chall Pack', totalHours: 32 },
-    }
+    useEffect(() => {
+        void loadPlanCatalog()
+    }, [])
 
     useEffect(() => {
         if (!token) {
@@ -217,16 +214,30 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
             .finally(() => setLoadingTools(false))
     }, [token, isAdmin, adminUserId])
 
-    const planCfg = userProfile?.plan
-        ? (PLAN_CONFIG[userProfile.plan] ?? getPlanDefinition(userProfile.plan) ? { name: getPlanDefinition(userProfile.plan)!.name, totalHours: getPlanDefinition(userProfile.plan)!.totalHours } : CURRENT_PLAN)
-        : CURRENT_PLAN
+    const assignment = userProfile?.currentAssignment as IPlanAssignment | null | undefined
 
-    const baseHours = planCfg.totalHours ?? 0
-    const extraHours = userProfile?.additionalHours ?? 0
-    const totalHours = baseHours + extraHours
+    let planCfg: { name: string; totalHours: number }
+    let totalHours: number
+    let completedHours: number
+    let remainingHours: number
 
-    const completedHours = userSessions.reduce((acc, s) => acc + s.hours, 0)
-    const remainingHours = Math.max(0, totalHours - completedHours)
+    if (assignment && assignment.status === 'active') {
+        const planDef = getPlanDefinition(assignment.planSlug)
+        planCfg = { name: planDef?.name ?? assignment.planSlug, totalHours: assignment.grantedHours }
+        totalHours = assignment.grantedHours
+        completedHours = assignment.usedHours
+        remainingHours = assignment.remainingHours
+    } else {
+        planCfg = userProfile?.plan
+            ? (getPlanDefinition(userProfile.plan) ?? CURRENT_PLAN)
+            : CURRENT_PLAN
+        const baseHours = planCfg.totalHours ?? 0
+        const extraHours = userProfile?.additionalHours ?? 0
+        totalHours = baseHours + extraHours
+        completedHours = userSessions.reduce((acc, s) => acc + s.hours, 0)
+        remainingHours = Math.max(0, totalHours - completedHours)
+    }
+
     const progressPct = totalHours > 0 ? Math.min(100, Math.round((completedHours / totalHours) * 100)) : 0
 
     const displaySessions = [...userSessions].sort((a, b) => {

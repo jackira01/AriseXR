@@ -1,13 +1,19 @@
 import { Router, type Request, type Response } from 'express'
 import express from 'express'
 import Stripe from 'stripe'
+import { Plan } from '../models/Plan.js'
 import { User } from '../models/User.js'
 import { Invoice } from '../models/Invoice.js'
 import { authMiddleware, type AuthRequest } from '../middleware/auth.js'
+import { assignPlanToUser } from '../lib/planLifecycle.js'
 
 const router = Router()
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
+
+const STRIPE_REDIRECT_URL = process.env.NODE_ENV === 'production'
+    ? process.env.CLIENT_URL_PRODUCTION
+    : process.env.CLIENT_URL_LOCAL || 'http://localhost:3000'
 
 const PLAN_LABELS: Record<string, string> = {
     intro: 'Intro Pack',
@@ -19,28 +25,9 @@ const PLAN_LABELS: Record<string, string> = {
     challenger: 'Chall Pack',
 }
 
-function buildPricePlanMap(): Record<string, string> {
-    const map: Record<string, string> = {}
-    const entries: [string, string][] = [
-        [process.env.STRIPE_PRICE_INTRO ?? '', 'intro'],
-        [process.env.STRIPE_PRICE_SILVER ?? '', 'silver'],
-        [process.env.STRIPE_PRICE_GOLD ?? '', 'gold'],
-        [process.env.STRIPE_PRICE_ESMERALD ?? '', 'esmerald'],
-        [process.env.STRIPE_PRICE_DIAMOND ?? '', 'diamond'],
-        [process.env.STRIPE_PRICE_NOLIFE ?? '', 'no_life'],
-        [process.env.STRIPE_PRICE_CHALLENGER ?? '', 'challenger'],
-    ]
-    for (const [priceId, plan] of entries) {
-        if (priceId) map[priceId] = plan
-    }
-    return map
-}
-
-const PRICE_PLAN_MAP = buildPricePlanMap()
-
 // ── POST /api/payments/create-checkout-session ────────────────────────────────
 router.post(
-    '/create-checkout-session',
+    '/create-session',
     express.json(),
     async (req: Request, res: Response) => {
         const { userId, email, priceId } = req.body as {
@@ -54,11 +41,13 @@ router.post(
             return
         }
 
-        const plan = PRICE_PLAN_MAP[priceId]
-        if (!plan) {
+        const planDoc = await Plan.findOne({ stripePriceId: priceId }).lean()
+        if (!planDoc) {
             res.status(400).json({ error: 'priceId inválido' })
             return
         }
+
+        const plan = planDoc.slug
 
         try {
             const session = await stripe.checkout.sessions.create({
@@ -68,8 +57,8 @@ router.post(
                 client_reference_id: userId,
                 line_items: [{ price: priceId, quantity: 1 }],
                 metadata: { plan },
-                success_url: `${process.env.CLIENT_URL}/cuenta`,
-                cancel_url: `${process.env.CLIENT_URL}/cuenta`,
+                success_url: `${STRIPE_REDIRECT_URL}/cuenta`,
+                cancel_url: `${STRIPE_REDIRECT_URL}/cuenta`,
             })
 
             res.json({ url: session.url })
@@ -158,10 +147,14 @@ router.post(
                     )
 
                     // 2. Activar plan en User y registrar factura embebida
+                    await assignPlanToUser({
+                        userId,
+                        planSlug: plan,
+                        source: 'stripe',
+                        invoiceId: session.id,
+                    })
+
                     await User.findByIdAndUpdate(userId, {
-                        hasPlan: true,
-                        planActive: true,
-                        plan,
                         $push: {
                             invoices: {
                                 invoiceId: session.id,

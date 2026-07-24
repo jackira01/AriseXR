@@ -9,7 +9,9 @@
         "seed": "tsx src/seed.ts",
         "seed:catalog": "tsx src/seedCatalog.ts",
         "seed:topics": "tsx src/scripts/seedTopics.ts",
-        "seed:testuser": "tsx src/scripts/seedTestUser.ts"
+        "seed:testuser": "tsx src/scripts/seedTestUser.ts",
+        "backfill:assignments": "tsx src/scripts/backfillAssignments.ts",
+        "seed:plans": "tsx src/scripts/seedPlans.ts"
     },
     "dependencies": {
         "bcryptjs": "^2.4.3",

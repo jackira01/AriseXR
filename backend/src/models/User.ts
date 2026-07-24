@@ -1,5 +1,6 @@
 import mongoose, { Schema, type Document } from 'mongoose'
 import bcrypt from 'bcryptjs'
+import type { PlanSlug } from './Plan.js'
 
 export interface IUserSession {
     date: string
@@ -42,9 +43,11 @@ export interface IUser extends Document {
     verificationCode?: string | null
     verificationCodeExpires?: Date | null
     role: 'user' | 'admin'
-    plan: 'intro' | 'silver' | 'gold' | 'esmerald' | 'diamond' | 'no_life' | 'challenger' | null
+    plan: PlanSlug | null
     hasPlan: boolean
     planActive: boolean
+    currentPlanSlug?: PlanSlug | null
+    currentPlanAssignmentId?: string | null
     additionalHours: number
     sessions: IUserSession[]
     topics: {
@@ -139,6 +142,12 @@ const UserSchema = new Schema<IUser>(
         },
         hasPlan: { type: Boolean, default: false },
         planActive: { type: Boolean, default: false },
+        currentPlanSlug: {
+            type: String,
+            enum: ['intro', 'silver', 'gold', 'esmerald', 'diamond', 'no_life', 'challenger', null],
+            default: null,
+        },
+        currentPlanAssignmentId: { type: String, default: null },
         topics: { type: [TopicSchema], default: [] },
         additionalHours: { type: Number, default: 0 },
         sessions: { type: [SessionSchema], default: [] },

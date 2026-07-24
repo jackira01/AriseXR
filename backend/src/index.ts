@@ -12,6 +12,7 @@ import adminRoutes from './routes/admin.js'
 import topicsRoutes from './routes/topics.js'
 import chatRoutes from './routes/chat.js'
 import paymentsRoutes from './routes/payments.js'
+import plansRoutes from './routes/plans.js'
 import { Message } from './models/Message.js'
 import { User } from './models/User.js'
 
@@ -19,26 +20,14 @@ const app = express()
 const httpServer = http.createServer(app)
 const PORT = process.env.PORT ?? 4000
 
-// ── Adaptar orígenes de comas a un Array de Strings real ───────────────────
-const ALLOWED_ORIGINS: string[] = process.env.CLIENT_URL
-    ? process.env.CLIENT_URL.split(',').map(url => url.trim())
-    : ['http://localhost:3000']
+// ── Socket.io ─────────────────────────────────────────────────────────────────
+const SOCKET_ORIGINS = process.env.NODE_ENV === 'production'
+    ? [process.env.CLIENT_URL_PRODUCTION!]
+    : [process.env.CLIENT_URL_LOCAL || 'http://localhost:3000']
 
-// En desarrollo local (si no estás en producción), forzamos la inclusión de localhost
-if (process.env.NODE_ENV !== 'production' && !ALLOWED_ORIGINS.includes('http://localhost:3000')) {
-    ALLOWED_ORIGINS.push('http://localhost:3000')
-}
-
-// ── Middleware ────────────────────────────────────────────────────────────────
+// ── Middleware CORS (solo si lo necesitas para otras rutas) ────────────────
 app.use(cors({
-    origin: (origin, callback) => {
-        // Si la petición no tiene origin (ej: Postman, llamadas internas) o está permitido
-        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-            callback(null, true)
-        } else {
-            callback(new Error('Bloqueado por CORS'))
-        }
-    },
+    origin: true, // O un array simple si tienes múltiples orígenes
     credentials: true
 }))
 
@@ -50,6 +39,7 @@ app.use(morgan('dev'))
 // Payments router must be mounted BEFORE express.json() so the webhook
 // route can receive the raw request body required for Stripe signature verification
 app.use('/api/payments', paymentsRoutes)
+app.use('/api/order', paymentsRoutes)
 
 app.use(express.json())
 
@@ -60,6 +50,7 @@ app.use('/api/users', userRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/topics', topicsRoutes)
 app.use('/api/chat', chatRoutes)
+app.use('/api/plans', plansRoutes)
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok' })
@@ -69,7 +60,7 @@ app.get('/health', (_req, res) => {
 const io = new Server(httpServer, {
     cors: {
         // Socket.io acepta nativamente un array de strings para manejar los orígenes
-        origin: ALLOWED_ORIGINS,
+        origin: SOCKET_ORIGINS,
         credentials: true
     },
 })

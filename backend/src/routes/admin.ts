@@ -4,6 +4,9 @@ import { User } from '../models/User.js'
 import { Invoice } from '../models/Invoice.js'
 import { Topic } from '../models/Topic.js'
 import { Category } from '../models/Category.js'
+import { PlanAssignment } from '../models/PlanAssignment.js'
+import { assignPlanToUser, updateAssignment, adjustAssignmentHours } from '../lib/planLifecycle.js'
+import type { PlanSlug } from '../models/Plan.js'
 
 const router = Router()
 
@@ -37,7 +40,8 @@ router.get('/users/:userId/profile', authMiddleware, async (req: AuthRequest, re
     try {
         const user = await User.findById(req.params.userId).select('-password -verificationCode -verificationCodeExpires').lean()
         if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
-        res.json(user)
+        const currentAssignment = await PlanAssignment.findOne({ userId: req.params.userId, status: 'active' }).sort({ assignedAt: -1 }).lean()
+        res.json({ ...user, currentAssignment })
     } catch {
         res.status(500).json({ message: 'Error interno del servidor' })
     }
@@ -242,6 +246,96 @@ router.patch('/users/:userId/topic-status/by-name', authMiddleware, async (req: 
     }
 })
 
+// POST /api/admin/users/:userId/plan-assignments — asignar un plan con historial
+router.post('/users/:userId/plan-assignments', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const { plan, source = 'admin', notes, grantedHours, invoiceId } = req.body as {
+            plan: string
+            source?: string
+            notes?: string
+            grantedHours?: number
+            invoiceId?: string
+        }
+        const validPlans = ['intro', 'silver', 'gold', 'esmerald', 'diamond', 'no_life', 'challenger']
+        if (!validPlans.includes(plan)) {
+            res.status(400).json({ message: 'Plan inválido. Usa: intro, silver, gold, esmerald, diamond, no_life, challenger' })
+            return
+        }
+
+        const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+        const assignment = await assignPlanToUser({
+            userId,
+            planSlug: plan as PlanSlug,
+            source: source === 'stripe' ? 'stripe' : 'admin',
+            grantedHours,
+            notes,
+            invoiceId,
+        })
+
+        res.status(201).json({ assignment })
+    } catch {
+        res.status(500).json({ message: 'Error interno del servidor' })
+    }
+})
+
+// PATCH /api/admin/users/:userId/plan-assignments/:assignmentId — actualizar asignación
+router.patch('/users/:userId/plan-assignments/:assignmentId', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const { grantedHours, notes, status } = req.body as {
+            grantedHours?: number
+            notes?: string
+            status?: string
+        }
+        const validStatuses = ['active', 'archived', 'expired']
+        if (status !== undefined && !validStatuses.includes(status)) {
+            res.status(400).json({ message: 'Estado inválido. Usa: active, archived, expired' })
+            return
+        }
+
+        const assignmentId = Array.isArray(req.params.assignmentId) ? req.params.assignmentId[0] : req.params.assignmentId
+        const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+
+        const assignment = await updateAssignment({
+            assignmentId,
+            userId,
+            grantedHours,
+            notes,
+            status: status as 'active' | 'archived' | 'expired' | undefined,
+        })
+
+        res.json({ assignment })
+    } catch (err) {
+        res.status(500).json({ message: (err as Error).message ?? 'Error interno del servidor' })
+    }
+})
+
+// PATCH /api/admin/users/:userId/plan-assignments/:assignmentId/adjust-hours — ajustar horas
+router.patch('/users/:userId/plan-assignments/:assignmentId/adjust-hours', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const { grantedHoursDelta, usedHoursDelta } = req.body as {
+            grantedHoursDelta?: number
+            usedHoursDelta?: number
+        }
+
+        const assignmentId = Array.isArray(req.params.assignmentId) ? req.params.assignmentId[0] : req.params.assignmentId
+        const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+
+        const assignment = await adjustAssignmentHours({
+            assignmentId,
+            userId,
+            grantedHoursDelta,
+            usedHoursDelta,
+        })
+
+        res.json({ assignment })
+    } catch (err) {
+        res.status(500).json({ message: (err as Error).message ?? 'Error interno del servidor' })
+    }
+})
+
 // PATCH /api/admin/users/:userId/plan — asignar o quitar plan manualmente
 router.patch('/users/:userId/plan', authMiddleware, async (req: AuthRequest, res: Response) => {
     if (!requireAdmin(req, res)) return
@@ -252,17 +346,34 @@ router.patch('/users/:userId/plan', authMiddleware, async (req: AuthRequest, res
             res.status(400).json({ message: 'Plan inválido. Usa: intro, silver, gold, esmerald, diamond, no_life, challenger o null' })
             return
         }
-        const user = await User.findByIdAndUpdate(
-            req.params.userId,
-            {
-                plan: plan ?? null,
-                hasPlan: plan !== null,
-                planActive: plan !== null,
-            },
-            { new: true, select: 'name email plan hasPlan planActive' }
-        )
+
+        if (!plan) {
+            const user = await User.findByIdAndUpdate(
+                req.params.userId,
+                {
+                    plan: null,
+                    hasPlan: false,
+                    planActive: false,
+                    currentPlanSlug: null,
+                    currentPlanAssignmentId: null,
+                },
+                { new: true, select: 'name email plan hasPlan planActive currentPlanSlug currentPlanAssignmentId' }
+            )
+            if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
+            res.json({ plan: user.plan, hasPlan: user.hasPlan, planActive: user.planActive })
+            return
+        }
+
+        const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+        const assignment = await assignPlanToUser({
+            userId,
+            planSlug: plan as PlanSlug,
+            source: 'admin',
+        })
+
+        const user = await User.findById(userId).select('name email plan hasPlan planActive currentPlanSlug currentPlanAssignmentId')
         if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
-        res.json({ plan: user.plan, hasPlan: user.hasPlan, planActive: user.planActive })
+        res.json({ plan: user.plan, hasPlan: user.hasPlan, planActive: user.planActive, assignment })
     } catch {
         res.status(500).json({ message: 'Error interno del servidor' })
     }

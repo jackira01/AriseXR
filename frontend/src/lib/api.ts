@@ -42,6 +42,7 @@ export interface UserProfile extends AdminUserSummary {
     createdAt?: string
     updatedAt?: string
     tareas?: ITarea[]
+    currentAssignment?: IPlanAssignment | null
 }
 
 export interface ITool {
@@ -50,6 +51,40 @@ export interface ITool {
     topicId: string
     active: boolean
     addedAt?: string
+}
+
+export interface IPlanAssignment {
+    _id: string
+    userId: string
+    planId?: string | null
+    planSlug: string
+    grantedHours: number
+    usedHours: number
+    remainingHours: number
+    status: 'active' | 'archived' | 'expired'
+    source: string
+    notes?: string
+    invoiceId?: string | null
+    assignedAt: string
+    createdAt?: string
+    updatedAt?: string
+}
+
+export interface PlanCatalogItem {
+    _id?: string
+    slug: Exclude<PlanSlug, null>
+    name: string
+    description?: string
+    price: number
+    currency?: string
+    totalHours: number
+    stripePriceId?: string | null
+    features?: string[]
+    badge?: string | null
+    rankImage?: string | null
+    active?: boolean
+    sortOrder?: number
+    highlight?: boolean
 }
 
 const API_BASE = '/api'
@@ -315,6 +350,14 @@ export interface CatalogCategory {
     _id: string
     name: string
     topics: CatalogTopic[]
+}
+
+export async function getPlansCatalog(): Promise<PlanCatalogItem[]> {
+    const response = await fetch(`${API_BASE}/plans`, {
+        headers: { 'Content-Type': 'application/json' },
+    })
+    if (!response.ok) throw new Error(`Error ${response.status}`)
+    return response.json()
 }
 
 export async function getTopicsCatalog(token: string): Promise<CatalogCategory[]> {
@@ -639,14 +682,14 @@ export async function createCheckoutSession(
     email: string,
     priceId: string
 ): Promise<string> {
-    const response = await fetch(`${API_BASE}/payments/create-checkout-session`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ userId, email, priceId }),
-    })
+        const response = await fetch(`${API_BASE}/order/create-session`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ userId, email, priceId }),
+        })
     if (!response.ok) {
         const err = await response.json().catch(() => ({})) as { error?: string }
         throw new Error(err.error ?? `Error ${response.status}`)
@@ -689,6 +732,44 @@ export async function adminAssignPlan(
             Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ plan }),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+// ── Plan Assignments ─────────────────────────────────────────────────────────
+
+export async function adminUpdateAssignment(
+    token: string,
+    userId: string,
+    assignmentId: string,
+    payload: { grantedHours?: number; notes?: string; status?: string }
+): Promise<{ assignment: IPlanAssignment }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/plan-assignments/${assignmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+export async function adminAdjustAssignmentHours(
+    token: string,
+    userId: string,
+    assignmentId: string,
+    payload: { grantedHoursDelta?: number; usedHoursDelta?: number }
+): Promise<{ assignment: IPlanAssignment }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/plan-assignments/${assignmentId}/adjust-hours`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
     })
     if (!response.ok) {
         const err = await response.json().catch(() => ({})) as { message?: string }

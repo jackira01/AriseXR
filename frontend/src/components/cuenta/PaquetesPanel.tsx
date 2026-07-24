@@ -2,14 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { adminGetUserProfile, getUserProfile, createCheckoutSession, adminAssignPlan, type PlanSlug } from '@/lib/api'
-import { PLAN_DEFINITIONS } from '@/lib/plans'
-
-const PLANS = PLAN_DEFINITIONS.map((plan) => ({
-    ...plan,
-    slug: plan.slug as PlanSlug,
-    current: false,
-}))
+import { adminGetUserProfile, getUserProfile, createCheckoutSession, adminAssignPlan, getPlansCatalog, type PlanCatalogItem } from '@/lib/api'
+import { loadPlanCatalog } from '@/lib/plans'
 
 export default function PaquetesPanel({ adminUserId, selectedUserName, selectedUserEmail }: { adminUserId?: string; selectedUserName?: string; selectedUserEmail?: string }) {
     const { data: session } = useSession()
@@ -20,6 +14,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
 
     const [adminUserName, setAdminUserName] = useState<string | null>(null)
     const [adminUserPlan, setAdminUserPlan] = useState<string | null>(null)
+    const [plans, setPlans] = useState<PlanCatalogItem[]>([])
     const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null)
     const [assigningPlan, setAssigningPlan] = useState<string | null>(null)
     const [assigningClose, setAssigningClose] = useState(false)
@@ -44,6 +39,14 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
     }, [adminUserId, token])
 
     useEffect(() => {
+        void loadPlanCatalog()
+        void getPlansCatalog().then((data) => {
+            const activePlans = (data ?? []).filter((plan) => plan.active !== false)
+            setPlans(activePlans)
+        })
+    }, [])
+
+    useEffect(() => {
         const resetLoadingState = () => setLoadingPriceId(null)
 
         window.addEventListener('pageshow', resetLoadingState)
@@ -61,7 +64,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
     }, [])
 
     // The user's active plan
-    const currentPlan = PLANS.find((p) =>
+    const currentPlan = plans.find((p) =>
         adminUserPlan ? p.slug === adminUserPlan : false
     )
 
@@ -103,21 +106,21 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
             {currentPlan && (
                 <div className="bg-red-950/40 backdrop-blur-sm border border-red-700/30 rounded-2xl px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={currentPlan.rankImg} alt={currentPlan.name} className="w-12 h-12 object-contain shrink-0"
-                        style={{ filter: `drop-shadow(0 0 10px ${currentPlan.rankGlow}88)` }} />
+                    <img src={currentPlan.rankImage ?? '/ranks/silver.webp'} alt={currentPlan.name} className="w-12 h-12 object-contain shrink-0"
+                        style={{ filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.24))' }} />
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 flex-wrap">
                             <span className="font-serif text-[1.1rem] font-bold uppercase text-white">{currentPlan.name}</span>
                             <span className="font-primary text-[.6rem] font-black tracking-[3px] uppercase px-3 py-0.5 rounded-full bg-linear-to-r from-cyan-500/80 to-blue-500/80 text-white">Paquete Activo</span>
                         </div>
                         <div className="flex gap-5 mt-2 flex-wrap">
-                            {[currentPlan.detail1, currentPlan.detail2, currentPlan.detail3].map((d) => (
+                            {[`${currentPlan.totalHours} hrs`, 'seguimiento activo', 'contenido guiado'].map((d) => (
                                 <span key={d} className="font-primary text-[.78rem] text-[rgba(255,210,210,.6)]">{d}</span>
                             ))}
                         </div>
                     </div>
                     <div className="flex flex-col items-end gap-3 shrink-0">
-                        <span className="font-primary text-[1.8rem] font-black text-white">{currentPlan.price}</span>
+                        <span className="font-primary text-[1.8rem] font-black text-white">${currentPlan.price} USD</span>
                         {adminUserId && (
                             confirmClose ? (
                                 <div className="flex flex-col gap-2 items-end">
@@ -166,7 +169,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
 
             {/* Plan cards grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 xl:gap-3">
-                {PLANS.map((plan) => {
+                {plans.map((plan) => {
                     const isCurrent = adminUserPlan ? plan.slug === adminUserPlan : false
                     return (
                         <div
@@ -185,8 +188,8 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                             {/* Rank image */}
                             <div className="flex justify-center mb-2">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={plan.rankImg} alt={plan.name} className="w-10 xl:w-9 h-10 xl:h-9 object-contain"
-                                    style={{ filter: `drop-shadow(0 0 10px ${plan.rankGlow}77)` }} />
+                                <img src={plan.rankImage ?? '/ranks/silver.webp'} alt={plan.name} className="w-10 xl:w-9 h-10 xl:h-9 object-contain"
+                                    style={{ filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.2))' }} />
                             </div>
 
                             {/* Name + price */}
@@ -194,15 +197,15 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                                 {plan.name}
                             </h3>
                             <p className={`font-primary text-[1.3rem] xl:text-[1.1rem] font-black text-center leading-none mb-2.5 xl:mb-2 ${isCurrent ? 'text-white' : 'text-[#fff0f0]'}`}>
-                                {plan.price}
+                                ${plan.price} USD
                             </p>
 
                             {/* Details row */}
                             <div className={`flex flex-col gap-0.5 mb-2.5 xl:mb-2 pb-2.5 xl:pb-2 border-b ${isCurrent ? 'border-white/15' : 'border-red-800/20'}`}>
                                 {[
-                                    { icon: '⏱', val: plan.detail1 },
-                                    { icon: '🎮', val: plan.detail2 },
-                                    { icon: '📚', val: plan.detail3 },
+                                    { icon: '⏱', val: `${plan.totalHours} hrs` },
+                                    { icon: '🎮', val: 'seguimiento activo' },
+                                    { icon: '📚', val: 'contenido guiado' },
                                 ].map((d) => (
                                     <div key={d.val} className={`flex items-center gap-1.5 font-primary text-[.7rem] xl:text-[.63rem] ${isCurrent ? 'text-red-100' : 'text-[rgba(255,210,210,.7)]'}`}>
                                         <span>{d.icon}</span> {d.val}
@@ -212,7 +215,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
 
                             {/* Features */}
                             <ul className="flex flex-col gap-1 mb-3 xl:mb-2.5 flex-1">
-                                {plan.features.map((f) => (
+                                {(plan.features ?? []).map((f) => (
                                     <li key={f} className={`flex items-start gap-1.5 font-primary text-[.65rem] xl:text-[.6rem] ${isCurrent ? 'text-white/80' : 'text-[rgba(255,210,210,.6)]'}`}>
                                         <svg className={`w-3 h-3 shrink-0 mt-px ${isCurrent ? 'text-cyan-300' : 'text-red-400'}`} viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
@@ -281,8 +284,10 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                                 <button
                                     onClick={async () => {
                                         try {
-                                            setLoadingPriceId(plan.priceId)
-                                            const url = await createCheckoutSession(token, userId, userEmail, plan.priceId)
+                                            const effectivePriceId = plan.stripePriceId
+                                            if (!effectivePriceId) return
+                                            setLoadingPriceId(effectivePriceId)
+                                            const url = await createCheckoutSession(token, userId, userEmail, effectivePriceId)
                                             window.location.assign(url)
                                         } catch (err) {
                                             console.error('[Stripe] Error al iniciar el pago:', err)
@@ -292,7 +297,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                                     disabled={loadingPriceId !== null}
                                     className="w-full py-2 xl:py-1.5 bg-linear-to-br from-red-700 to-red-500 text-white font-primary text-[.65rem] xl:text-[.6rem] font-bold tracking-[1.5px] xl:tracking-[1px] uppercase rounded-xl text-center hover:brightness-110 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    {loadingPriceId === plan.priceId ? 'Redirigiendo...' : 'Comprar Paquete'}
+                                    {loadingPriceId === (plan.stripePriceId ?? '') ? 'Redirigiendo...' : 'Comprar Paquete'}
                                 </button>
                             )}
                         </div>
