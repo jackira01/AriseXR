@@ -364,6 +364,60 @@ export async function getPlansCatalog(): Promise<PlanCatalogItem[]> {
     return response.json()
 }
 
+export type AdminPlanPayload = Partial<{
+    slug: Exclude<PlanSlug, null>
+    name: string
+    description: string
+    price: number
+    currency: string
+    totalHours: number
+    timeValue: number | null
+    timeUnit: PlanTimeUnit
+    stripePriceId: string | null
+    features: string[]
+    badge: string | null
+    rankImage: string | null
+    active: boolean
+    sortOrder: number
+}>
+
+export async function adminCreatePlan(token: string, payload: AdminPlanPayload): Promise<PlanCatalogItem> {
+    const response = await fetch(`${API_BASE}/plans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+export async function adminUpdatePlan(token: string, slug: string, payload: AdminPlanPayload): Promise<PlanCatalogItem> {
+    const response = await fetch(`${API_BASE}/plans/${slug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+export async function adminDeletePlan(token: string, slug: string): Promise<void> {
+    const response = await fetch(`${API_BASE}/plans/${slug}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+}
+
 export async function getTopicsCatalog(token: string): Promise<CatalogCategory[]> {
     const response = await fetch(`${API_BASE}/topics/categories`, {
         headers: { Authorization: `Bearer ${token}` },

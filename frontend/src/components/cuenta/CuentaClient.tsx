@@ -7,12 +7,13 @@ import SeguimientoPanel from '@/components/cuenta/SeguimientoPanel'
 import ChatPanel from '@/components/cuenta/ChatPanel'
 import FacturacionPanel from '@/components/cuenta/FacturacionPanel'
 import PaquetesPanel from '@/components/cuenta/PaquetesPanel'
+import PlanesPanel from '@/components/cuenta/PlanesPanel'
 import TemasPanel from '@/components/cuenta/TemasPanel'
 import UserSearchFilter from '@/components/cuenta/UserSearchFilter'
 import { signOut } from 'next-auth/react'
 import { getUserProfile, type AdminUserSummary } from '@/lib/api'
 
-type Tab = 'seguimiento' | 'chat' | 'facturacion' | 'paquetes' | 'temas'
+type Tab = 'seguimiento' | 'chat' | 'facturacion' | 'paquetes' | 'temas' | 'planes'
 
 const USER_TABS: { id: Tab; label: string; icon: string }[] = [
     { id: 'seguimiento', label: 'Seguimiento', icon: '📈' },
@@ -24,6 +25,7 @@ const USER_TABS: { id: Tab; label: string; icon: string }[] = [
 const ADMIN_TABS: { id: Tab; label: string; icon: string }[] = [
     ...USER_TABS,
     { id: 'temas', label: 'Temas', icon: '📚' },
+    { id: 'planes', label: 'Planes', icon: '🎯' },
 ]
 
 export default function CuentaClient() {
@@ -188,6 +190,7 @@ export default function CuentaClient() {
                         {activeTab === 'facturacion' && <FacturacionPanel adminUserId={selectedUser?._id} selectedUserName={selectedUser?.name} selectedUserEmail={selectedUser?.email} />}
                         {activeTab === 'paquetes' && <PaquetesPanel adminUserId={selectedUser?._id} selectedUserName={selectedUser?.name} selectedUserEmail={selectedUser?.email} />}
                         {activeTab === 'temas' && isAdmin && <TemasPanel />}
+                        {activeTab === 'planes' && isAdmin && <PlanesPanel />}
                     </>
                 )}
             </main>
