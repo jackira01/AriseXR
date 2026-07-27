@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express'
 import jwt from 'jsonwebtoken'
 import Mailjet from 'node-mailjet'
 import { User } from '../models/User.js'
+import { PendingRegistration } from '../models/PendingRegistration.js'
 
 const router = Router()
 
@@ -14,6 +15,27 @@ function getMailjet() {
 
 function generateCode(): string {
     return Math.floor(100000 + Math.random() * 900000).toString()
+}
+
+async function sendVerificationEmail(email: string, code: string) {
+    const mailjet = getMailjet()
+    return mailjet.post('send', { version: 'v3.1' }).request({
+        Messages: [
+            {
+                From: { Email: process.env.MJ_SENDER_EMAIL as string, Name: 'Arise Coach' },
+                To: [{ Email: email }],
+                Subject: 'Código de verificación - Arise Coach',
+                HTMLPart: `
+                    <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#0a0a0a;color:#fff0f0;border-radius:16px;">
+                        <h2 style="color:#ef4444;margin-bottom:8px;">Verifica tu correo</h2>
+                        <p style="color:rgba(255,210,210,.7);margin-bottom:24px;">Usa el siguiente código para completar tu registro en Arise Coach. Expira en 10 minutos.</p>
+                        <div style="font-size:2.5rem;font-weight:bold;letter-spacing:10px;text-align:center;color:#fff;background:#1a0a0a;border:1px solid #7f1d1d;border-radius:12px;padding:20px;">${code}</div>
+                        <p style="color:rgba(255,210,210,.4);font-size:.8rem;margin-top:24px;">Si no solicitaste esto, ignora este correo.</p>
+                    </div>
+                `,
+            },
+        ],
+    })
 }
 
 // POST /api/auth/login
@@ -64,7 +86,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 })
 
-// POST /api/auth/register  (email/password) — crea usuario pendiente y envía código de verificación
+// POST /api/auth/register  (email/password) — guarda registro pendiente (fuera de User) y envía código
 router.post('/register', async (req: Request, res: Response) => {
     const { name, email, password } = req.body as {
         name: string
@@ -85,11 +107,8 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     try {
-        console.log('[AUTH][REGISTER] Inicio procesamiento', { email, name })
-
-        // Rechazar si ya existe un usuario verificado con ese email
+        // Rechazar si ya existe una cuenta con ese email
         const existing = await User.findOne({ email, emailVerified: true })
-        console.log('[AUTH][REGISTER] Usuario verificado existente:', !!existing)
         if (existing) {
             console.log('[AUTH][REGISTER] Conflicto: email ya registrado')
             res.status(409).json({ message: 'El email ya está registrado' })
@@ -98,65 +117,22 @@ router.post('/register', async (req: Request, res: Response) => {
 
         const code = generateCode()
         const expires = new Date(Date.now() + 10 * 60 * 1000) // 10 minutos
-        console.log('[AUTH][REGISTER] Código generado:', code)
 
-        // Crear o actualizar usuario pendiente de verificación
-        const pending = await User.findOne({ email })
+        // Guardar como registro pendiente (NO se crea el User hasta verificar)
+        const pending = await PendingRegistration.findOne({ email })
         if (pending) {
-            console.log('[AUTH][REGISTER] Actualizando usuario pendiente existente')
             pending.name = name
             pending.password = password
-            pending.provider = 'credentials'
-            pending.verificationCode = code
-            pending.verificationCodeExpires = expires
+            pending.code = code
+            pending.expires = expires
             await pending.save()
-            console.log('[AUTH][REGISTER] Usuario pendiente actualizado')
         } else {
-            console.log('[AUTH][REGISTER] Creando usuario pendiente nuevo')
-            await User.create({
-                name,
-                email,
-                password,
-                provider: 'credentials',
-                emailVerified: false,
-                verificationCode: code,
-                verificationCodeExpires: expires,
-            })
-            console.log('[AUTH][REGISTER] Usuario pendiente creado')
+            await PendingRegistration.create({ name, email, password, code, expires })
         }
+        console.log('[AUTH][REGISTER] Registro pendiente guardado')
 
-        console.log('[AUTH][REGISTER] Preparando envío Mailjet', {
-            email,
-            code,
-            expires,
-        })
-        console.log('[AUTH][REGISTER] Mailjet config:', {
-            hasPublicKey: !!process.env.MJ_APIKEY_PUBLIC,
-            hasPrivateKey: !!process.env.MJ_APIKEY_PRIVATE,
-            sender: process.env.MJ_SENDER_EMAIL,
-        })
-
-        const mailjet = getMailjet()
-        const mailResponse = await mailjet.post('send', { version: 'v3.1' }).request({
-            Messages: [
-                {
-                    From: { Email: process.env.MJ_SENDER_EMAIL as string, Name: 'Arise Coach' },
-                    To: [{ Email: email }],
-                    Subject: 'Código de verificación - Arise Coach',
-                    HTMLPart: `
-                        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#0a0a0a;color:#fff0f0;border-radius:16px;">
-                            <h2 style="color:#ef4444;margin-bottom:8px;">Verifica tu correo</h2>
-                            <p style="color:rgba(255,210,210,.7);margin-bottom:24px;">Usa el siguiente código para completar tu registro en Arise Coach. Expira en 10 minutos.</p>
-                            <div style="font-size:2.5rem;font-weight:bold;letter-spacing:10px;text-align:center;color:#fff;background:#1a0a0a;border:1px solid #7f1d1d;border-radius:12px;padding:20px;">${code}</div>
-                            <p style="color:rgba(255,210,210,.4);font-size:.8rem;margin-top:24px;">Si no solicitaste esto, ignora este correo.</p>
-                        </div>
-                    `,
-                },
-            ],
-        })
-
-        console.log('[AUTH][REGISTER] Mailjet response:', mailResponse?.body)
-        console.log('[AUTH][REGISTER] Respuesta enviada al cliente', { status: 200 })
+        await sendVerificationEmail(email, code)
+        console.log('[AUTH][REGISTER] Código de verificación enviado')
         res.json({ message: 'Código enviado' })
     } catch (err) {
         console.error('[AUTH][REGISTER] Error en registro:', err)
@@ -164,7 +140,7 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 })
 
-// POST /api/auth/send-verification  — envía código Mailjet para registro con Google
+// POST /api/auth/send-verification  — reenvía el código de un registro pendiente
 router.post('/send-verification', async (req: Request, res: Response) => {
     const { email } = req.body as { email: string }
 
@@ -177,57 +153,25 @@ router.post('/send-verification', async (req: Request, res: Response) => {
         console.log('[AUTH][SEND-VERIFICATION] Petición recibida', { email })
 
         const existing = await User.findOne({ email, emailVerified: true })
-        console.log('[AUTH][SEND-VERIFICATION] Usuario verificado existente:', !!existing)
         if (existing) {
             console.log('[AUTH][SEND-VERIFICATION] Conflicto: email ya registrado')
             res.status(409).json({ message: 'El email ya está registrado' })
             return
         }
 
-        const code = generateCode()
-        const expires = new Date(Date.now() + 10 * 60 * 1000) // 10 minutos
-        console.log('[AUTH][SEND-VERIFICATION] Código generado:', code)
+        const pending = await PendingRegistration.findOne({ email })
+        if (!pending) {
+            console.log('[AUTH][SEND-VERIFICATION] No hay registro pendiente')
+            res.status(404).json({ message: 'No hay un registro pendiente para este email. Regístrate primero.' })
+            return
+        }
 
-        // Guardar temporalmente el código en un doc sin contraseña (o actualizar si ya existe pendiente)
-        console.log('[AUTH][SEND-VERIFICATION] Guardando código temporal')
-        await User.findOneAndUpdate(
-            { email },
-            {
-                $setOnInsert: { name: 'pending', email, provider: 'google', emailVerified: false },
-                verificationCode: code,
-                verificationCodeExpires: expires,
-            },
-            { upsert: true, new: true }
-        )
-        console.log('[AUTH][SEND-VERIFICATION] Código temporal guardado')
+        pending.code = generateCode()
+        pending.expires = new Date(Date.now() + 10 * 60 * 1000) // 10 minutos
+        await pending.save()
 
-        console.log('[AUTH][SEND-VERIFICATION] Mailjet config:', {
-            hasPublicKey: !!process.env.MJ_APIKEY_PUBLIC,
-            hasPrivateKey: !!process.env.MJ_APIKEY_PRIVATE,
-            sender: process.env.MJ_SENDER_EMAIL,
-        })
-
-        const mailjet = getMailjet()
-        const mailResponse = await mailjet.post('send', { version: 'v3.1' }).request({
-            Messages: [
-                {
-                    From: { Email: process.env.MJ_SENDER_EMAIL as string, Name: 'Arise Coach' },
-                    To: [{ Email: email }],
-                    Subject: 'Código de verificación - Arise Coach',
-                    HTMLPart: `
-                        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#0a0a0a;color:#fff0f0;border-radius:16px;">
-                            <h2 style="color:#ef4444;margin-bottom:8px;">Verifica tu correo</h2>
-                            <p style="color:rgba(255,210,210,.7);margin-bottom:24px;">Usa el siguiente código para completar tu registro en Arise Coach. Expira en 10 minutos.</p>
-                            <div style="font-size:2.5rem;font-weight:bold;letter-spacing:10px;text-align:center;color:#fff;background:#1a0a0a;border:1px solid #7f1d1d;border-radius:12px;padding:20px;">${code}</div>
-                            <p style="color:rgba(255,210,210,.4);font-size:.8rem;margin-top:24px;">Si no solicitaste esto, ignora este correo.</p>
-                        </div>
-                    `,
-                },
-            ],
-        })
-
-        console.log('[AUTH][SEND-VERIFICATION] Mailjet response:', mailResponse?.body)
-        console.log('[AUTH][SEND-VERIFICATION] Respuesta enviada al cliente', { status: 200 })
+        await sendVerificationEmail(email, pending.code)
+        console.log('[AUTH][SEND-VERIFICATION] Código reenviado')
         res.json({ message: 'Código enviado' })
     } catch (err) {
         console.error('[AUTH][SEND-VERIFICATION] Error enviando código:', err)
@@ -235,47 +179,51 @@ router.post('/send-verification', async (req: Request, res: Response) => {
     }
 })
 
-// POST /api/auth/verify-code  — verifica el código y completa el registro Google
+// POST /api/auth/verify-code  — verifica el código y crea la cuenta (recién aquí se guarda en User)
 router.post('/verify-code', async (req: Request, res: Response) => {
-    const { email, code, name } = req.body as { email: string; code: string; name: string }
-    console.log('[AUTH][VERIFY-CODE] Petición recibida', { email, name, codeLength: code?.length })
+    const { email, code } = req.body as { email: string; code: string }
+    console.log('[AUTH][VERIFY-CODE] Petición recibida', { email, codeLength: code?.length })
 
-    if (!email || !code || !name) {
-        console.log('[AUTH][VERIFY-CODE] Datos incompletos', { email: Boolean(email), code: Boolean(code), name: Boolean(name) })
-        res.status(400).json({ message: 'Email, nombre y código son requeridos' })
+    if (!email || !code) {
+        console.log('[AUTH][VERIFY-CODE] Datos incompletos', { email: Boolean(email), code: Boolean(code) })
+        res.status(400).json({ message: 'Email y código son requeridos' })
         return
     }
 
     try {
-        const user = await User.findOne({ email })
-        console.log('[AUTH][VERIFY-CODE] Usuario encontrado', { found: Boolean(user), hasCode: Boolean(user?.verificationCode) })
+        const pending = await PendingRegistration.findOne({ email })
 
-        if (!user || !user.verificationCode || !user.verificationCodeExpires) {
-            console.log('[AUTH][VERIFY-CODE] Código no encontrado para el email')
+        if (!pending) {
+            console.log('[AUTH][VERIFY-CODE] Registro pendiente no encontrado')
             res.status(400).json({ message: 'Código no encontrado. Solicita uno nuevo.' })
             return
         }
 
-        if (user.verificationCodeExpires < new Date()) {
+        if (pending.expires < new Date()) {
             console.log('[AUTH][VERIFY-CODE] Código expirado')
             res.status(400).json({ message: 'El código ha expirado. Solicita uno nuevo.' })
             return
         }
 
-        if (user.verificationCode !== code) {
-            console.log('[AUTH][VERIFY-CODE] Código incorrecto', { providedCode: code, storedCode: user.verificationCode })
+        if (pending.code !== code) {
+            console.log('[AUTH][VERIFY-CODE] Código incorrecto')
             res.status(400).json({ message: 'Código incorrecto' })
             return
         }
 
-        // Completar el registro
-        console.log('[AUTH][VERIFY-CODE] Código correcto, completando registro')
-        user.name = name
-        user.emailVerified = true
-        user.verificationCode = null
-        user.verificationCodeExpires = null
-        await user.save()
-        console.log('[AUTH][VERIFY-CODE] Usuario verificado correctamente')
+        // Limpiar usuario legacy no verificado con ese email (si existe de la lógica anterior)
+        await User.deleteOne({ email, emailVerified: false })
+
+        // Código correcto → crear la cuenta (insertMany evita re-hashear el password ya hasheado)
+        await User.insertMany([{
+            name: pending.name,
+            email: pending.email,
+            password: pending.password,
+            provider: 'credentials',
+            emailVerified: true,
+        }])
+        await pending.deleteOne()
+        console.log('[AUTH][VERIFY-CODE] Cuenta creada y verificada')
 
         res.json({ message: 'Email verificado correctamente' })
     } catch (err) {
@@ -294,14 +242,8 @@ router.post('/register-google', async (req: Request, res: Response) => {
 
         if (!user) {
             user = await User.create({ name, email, provider: 'google', emailVerified: true })
-        } else if (!user.emailVerified) {
-            // Usuario pendiente de verificación por otro flujo: actualizar a Google
-            user.name = name
-            user.provider = 'google'
-            user.emailVerified = true
-            user.verificationCode = null
-            user.verificationCodeExpires = null
-            await user.save()
+            // Descartar cualquier registro pendiente con ese email
+            await PendingRegistration.deleteOne({ email })
         }
 
         res.json({

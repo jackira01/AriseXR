@@ -40,8 +40,6 @@ export interface IUser extends Document {
     password?: string
     provider: 'credentials' | 'google'
     emailVerified: boolean
-    verificationCode?: string | null
-    verificationCodeExpires?: Date | null
     role: 'user' | 'admin'
     plan: PlanSlug | null
     hasPlan: boolean
@@ -128,8 +126,6 @@ const UserSchema = new Schema<IUser>(
             default: 'credentials',
         },
         emailVerified: { type: Boolean, default: false },
-        verificationCode: { type: String, default: null },
-        verificationCodeExpires: { type: Date, default: null },
         role: {
             type: String,
             enum: ['user', 'admin'],

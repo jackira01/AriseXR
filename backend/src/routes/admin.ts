@@ -38,7 +38,7 @@ router.get('/users', authMiddleware, async (req: AuthRequest, res: Response) => 
 router.get('/users/:userId/profile', authMiddleware, async (req: AuthRequest, res: Response) => {
     if (!requireAdmin(req, res)) return
     try {
-        const user = await User.findById(req.params.userId).select('-password -verificationCode -verificationCodeExpires').lean()
+        const user = await User.findById(req.params.userId).select('-password').lean()
         if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
         const currentAssignment = await PlanAssignment.findOne({ userId: req.params.userId, status: 'active' }).sort({ assignedAt: -1 }).lean()
         res.json({ ...user, currentAssignment })

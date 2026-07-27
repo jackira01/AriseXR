@@ -10,22 +10,17 @@ function VerificarContent() {
     const router = useRouter()
     const params = useSearchParams()
     const email = params.get('email') ?? ''
-    const name = params.get('name') ?? ''
     const pwd = params.get('pwd') ?? ''
 
     const [code, setCode] = useState(['', '', '', '', '', ''])
     const [error, setError] = useState('')
     const [info, setInfo] = useState('')
     const [loading, setLoading] = useState(false)
-    const [sent, setSent] = useState(false)
+    // El código ya fue enviado por /register al llegar a esta página
+    const [sent, setSent] = useState(true)
     const [cooldown, setCooldown] = useState(0)
     const inputRefs = useRef<(HTMLInputElement | null)[]>([])
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4000'
-
-    useEffect(() => {
-        if (email) sendCode()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
 
     useEffect(() => {
         if (cooldown <= 0) return
@@ -101,7 +96,7 @@ function VerificarContent() {
             const res = await fetch(`${backendUrl}/api/auth/verify-code`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, code: fullCode, name }),
+                body: JSON.stringify({ email, code: fullCode }),
             })
             const data = await res.json() as { message?: string }
             if (!res.ok) {
