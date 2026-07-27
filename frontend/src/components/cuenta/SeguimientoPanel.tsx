@@ -28,7 +28,7 @@ import {
     type ITool,
     type IPlanAssignment,
 } from '@/lib/api'
-import { getPlanDefinition, loadPlanCatalog } from '@/lib/plans'
+import { getPlanDefinition, loadPlanCatalog, formatPlanTime, type PlanTimeUnit } from '@/lib/plans'
 
 // ── Plan base por defecto (en una app real vendría del perfil del usuario) ──────────
 const CURRENT_PLAN = {
@@ -216,14 +216,19 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
 
     const assignment = userProfile?.currentAssignment as IPlanAssignment | null | undefined
 
-    let planCfg: { name: string; totalHours: number }
+    let planCfg: { name: string; totalHours: number; timeValue?: number | null; timeUnit?: PlanTimeUnit | null }
     let totalHours: number
     let completedHours: number
     let remainingHours: number
 
     if (assignment && assignment.status === 'active') {
         const planDef = getPlanDefinition(assignment.planSlug)
-        planCfg = { name: planDef?.name ?? assignment.planSlug, totalHours: assignment.grantedHours }
+        planCfg = {
+            name: planDef?.name ?? assignment.planSlug,
+            totalHours: assignment.grantedHours,
+            timeValue: planDef?.timeValue ?? null,
+            timeUnit: planDef?.timeUnit ?? 'hours',
+        }
         totalHours = assignment.grantedHours
         completedHours = assignment.usedHours
         remainingHours = assignment.remainingHours
@@ -605,7 +610,7 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                             <div className="flex items-start justify-between mb-1">
                                 <div>
                                     <span className="font-primary text-[.85rem] font-semibold text-[rgba(255,210,210,.8)]">Horas Completadas</span>
-                                    <p className="font-primary text-[.72rem] text-[rgba(255,210,210,.4)] mt-0.5">{planCfg.name} · {planCfg.totalHours} hrs en total</p>
+                                    <p className="font-primary text-[.72rem] text-[rgba(255,210,210,.4)] mt-0.5">{planCfg.name} · {formatPlanTime(planCfg)} en total</p>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     {/* Admin action buttons — only visible when admin has selected a user */}

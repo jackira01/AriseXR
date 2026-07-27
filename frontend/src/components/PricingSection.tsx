@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { createCheckoutSession, getPlansCatalog, type PlanCatalogItem } from '@/lib/api'
-import { loadPlanCatalog } from '@/lib/plans'
+import { loadPlanCatalog, formatPlanTime } from '@/lib/plans'
 
 export default function PricingSection() {
     const { data: session } = useSession()
@@ -195,7 +195,7 @@ export default function PricingSection() {
                             </h3>
 
                             <div className={`flex flex-col gap-1 mb-2 lg:mb-1.5 ${plan.slug === 'diamond' ? 'text-red-100' : 'text-[rgba(255,210,210,.8)]'}`}>
-                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>⏱</span> {plan.totalHours} hrs en total</div>
+                                <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>⏱</span> {formatPlanTime(plan)} en total</div>
                                 <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>🎮</span> seguimiento activo</div>
                                 <div className="flex items-center gap-2 font-primary text-[.75rem] lg:text-[.7rem] font-semibold"><span>📚</span> contenido guiado</div>
                             </div>

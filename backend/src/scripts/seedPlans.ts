@@ -13,6 +13,8 @@ const FRONTEND_PLANS: Omit<IPlanDefinition, 'stripePriceId'>[] = [
         price: 31,
         currency: 'USD',
         totalHours: 1,
+        timeValue: null,
+        timeUnit: 'hours',
         features: ['Análisis de errores', 'Retroalimentación inicial'],
         badge: 'INICIADOR',
         rankImage: '/ranks/grandmaster.png',
@@ -26,6 +28,8 @@ const FRONTEND_PLANS: Omit<IPlanDefinition, 'stripePriceId'>[] = [
         price: 125,
         currency: 'USD',
         totalHours: 4,
+        timeValue: null,
+        timeUnit: 'hours',
         features: ['Retroalimentación personalizada', 'Coach en vivo'],
         badge: null,
         rankImage: '/ranks/silver.webp',
@@ -39,6 +43,8 @@ const FRONTEND_PLANS: Omit<IPlanDefinition, 'stripePriceId'>[] = [
         price: 99,
         currency: 'USD',
         totalHours: 6,
+        timeValue: null,
+        timeUnit: 'hours',
         features: ['Retroalimentación personalizada', 'Coach en vivo', 'Entrenamiento personalizado'],
         badge: 'ORO',
         rankImage: '/ranks/gold.webp',
@@ -52,6 +58,8 @@ const FRONTEND_PLANS: Omit<IPlanDefinition, 'stripePriceId'>[] = [
         price: 219,
         currency: 'USD',
         totalHours: 10,
+        timeValue: null,
+        timeUnit: 'hours',
         features: ['Retroalimentación personalizada', 'Coach en vivo', 'Entrenamiento personalizado', 'Análisis previo'],
         badge: null,
         rankImage: '/ranks/emerald.png',
@@ -65,6 +73,8 @@ const FRONTEND_PLANS: Omit<IPlanDefinition, 'stripePriceId'>[] = [
         price: 500,
         currency: 'USD',
         totalHours: 18,
+        timeValue: null,
+        timeUnit: 'hours',
         features: ['Retroalimentación personalizada', 'Coach en vivo', 'Entrenamiento personalizado', 'Análisis previo', 'Videos personalizados de mejoras', 'Teorías aplicadas al juego'],
         badge: 'RECOMENDADO',
         rankImage: '/ranks/diamond.png',
@@ -78,6 +88,8 @@ const FRONTEND_PLANS: Omit<IPlanDefinition, 'stripePriceId'>[] = [
         price: 2499,
         currency: 'USD',
         totalHours: 0,
+        timeValue: 1,
+        timeUnit: 'months',
         features: ['Sesión diaria garantizada', 'Todo lo del Chall Pack incluido', 'Seguimiento y ajuste día a día', 'Acceso prioritario directo contigo'],
         badge: 'EXCLUSIVO',
         rankImage: '/ranks/no_life.jpg',
@@ -91,6 +103,8 @@ const FRONTEND_PLANS: Omit<IPlanDefinition, 'stripePriceId'>[] = [
         price: 938,
         currency: 'USD',
         totalHours: 32,
+        timeValue: null,
+        timeUnit: 'hours',
         features: ['Retroalimentación personalizada', 'Coach en vivo', 'Entrenamiento personalizado', 'Análisis previo', 'Videos personalizados de mejoras', 'Teorías aplicadas al juego', 'Práctica guiada', 'Entendimiento analítico pre y post game'],
         badge: 'RETADOR',
         rankImage: '/ranks/challenger.png',
@@ -121,7 +135,12 @@ async function seedPlans() {
             await Plan.create(plan)
             created++
         }
-        console.log(`  ${existing ? 'Actualizado' : 'Creado'}  ${plan.slug} — ${plan.name} ($${plan.price} USD, ${plan.totalHours}h)`)
+        const timeLabel = plan.timeUnit === 'months'
+            ? `${plan.timeValue} ${plan.timeValue === 1 ? 'mes' : 'meses'}`
+            : plan.timeUnit === 'days'
+                ? `${plan.timeValue} ${plan.timeValue === 1 ? 'día' : 'días'}`
+                : `${plan.timeValue ?? plan.totalHours}h`
+        console.log(`  ${existing ? 'Actualizado' : 'Creado'}  ${plan.slug} — ${plan.name} ($${plan.price} USD, ${timeLabel})`)
     }
 
     console.log(`\nSeed completado: ${created} creados, ${upserted} actualizados`)

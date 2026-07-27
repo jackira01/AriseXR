@@ -2,6 +2,8 @@ import mongoose, { Schema, type Document } from 'mongoose'
 
 export type PlanSlug = 'intro' | 'silver' | 'gold' | 'esmerald' | 'diamond' | 'no_life' | 'challenger'
 
+export type PlanTimeUnit = 'hours' | 'days' | 'months'
+
 export interface IPlanDefinition {
     slug: PlanSlug
     name: string
@@ -9,6 +11,8 @@ export interface IPlanDefinition {
     price: number
     currency: string
     totalHours: number
+    timeValue?: number | null
+    timeUnit?: PlanTimeUnit
     stripePriceId?: string | null
     features: string[]
     badge?: string | null
@@ -37,6 +41,10 @@ const PlanSchema = new Schema<IPlan>(
         price: { type: Number, required: true, default: 0 },
         currency: { type: String, default: 'USD' },
         totalHours: { type: Number, required: true, default: 0 },
+        // Tiempo a mostrar en UI (el consumo interno sigue siendo por horas).
+        // Si timeValue es null y timeUnit es 'hours', se muestra totalHours.
+        timeValue: { type: Number, default: null },
+        timeUnit: { type: String, enum: ['hours', 'days', 'months'], default: 'hours' },
         stripePriceId: { type: String, default: null },
         features: { type: [String], default: [] },
         badge: { type: String, default: null },
@@ -127,6 +135,8 @@ export const DEFAULT_PLAN_DEFINITIONS: IPlanDefinition[] = [
         price: 799,
         currency: 'USD',
         totalHours: 40,
+        timeValue: 1,
+        timeUnit: 'months',
         stripePriceId: null,
         features: ['40 horas de coaching', 'Atención intensiva', 'Feedback continuo'],
         badge: 'High Intensity',
@@ -162,6 +172,8 @@ export async function ensureDefaultPlans() {
                     price: planDefinition.price,
                     currency: planDefinition.currency,
                     totalHours: planDefinition.totalHours,
+                    timeValue: planDefinition.timeValue ?? null,
+                    timeUnit: planDefinition.timeUnit ?? 'hours',
                     stripePriceId: planDefinition.stripePriceId,
                     features: planDefinition.features,
                     badge: planDefinition.badge,
@@ -171,6 +183,12 @@ export async function ensureDefaultPlans() {
                 },
             },
             { upsert: true }
+        )
+
+        // Migración suave: completar timeValue/timeUnit en planes existentes que no los tengan
+        await Plan.updateOne(
+            { slug: planDefinition.slug, timeUnit: { $exists: false } },
+            { $set: { timeValue: planDefinition.timeValue ?? null, timeUnit: planDefinition.timeUnit ?? 'hours' } }
         )
     }
 }

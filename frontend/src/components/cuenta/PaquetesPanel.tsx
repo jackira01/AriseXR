@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { adminGetUserProfile, getUserProfile, createCheckoutSession, adminAssignPlan, getPlansCatalog, type PlanCatalogItem } from '@/lib/api'
-import { loadPlanCatalog } from '@/lib/plans'
+import { loadPlanCatalog, formatPlanTime } from '@/lib/plans'
 
 export default function PaquetesPanel({ adminUserId, selectedUserName, selectedUserEmail }: { adminUserId?: string; selectedUserName?: string; selectedUserEmail?: string }) {
     const { data: session } = useSession()
@@ -114,7 +114,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                             <span className="font-primary text-[.6rem] font-black tracking-[3px] uppercase px-3 py-0.5 rounded-full bg-linear-to-r from-cyan-500/80 to-blue-500/80 text-white">Paquete Activo</span>
                         </div>
                         <div className="flex gap-5 mt-2 flex-wrap">
-                            {[`${currentPlan.totalHours} hrs`, 'seguimiento activo', 'contenido guiado'].map((d) => (
+                            {[formatPlanTime(currentPlan), 'seguimiento activo', 'contenido guiado'].map((d) => (
                                 <span key={d} className="font-primary text-[.78rem] text-[rgba(255,210,210,.6)]">{d}</span>
                             ))}
                         </div>
@@ -203,7 +203,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                             {/* Details row */}
                             <div className={`flex flex-col gap-0.5 mb-2.5 xl:mb-2 pb-2.5 xl:pb-2 border-b ${isCurrent ? 'border-white/15' : 'border-red-800/20'}`}>
                                 {[
-                                    { icon: '⏱', val: `${plan.totalHours} hrs` },
+                                    { icon: '⏱', val: formatPlanTime(plan) },
                                     { icon: '🎮', val: 'seguimiento activo' },
                                     { icon: '📚', val: 'contenido guiado' },
                                 ].map((d) => (

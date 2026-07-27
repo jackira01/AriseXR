@@ -70,6 +70,8 @@ export interface IPlanAssignment {
     updatedAt?: string
 }
 
+export type PlanTimeUnit = 'hours' | 'days' | 'months'
+
 export interface PlanCatalogItem {
     _id?: string
     slug: Exclude<PlanSlug, null>
@@ -78,6 +80,8 @@ export interface PlanCatalogItem {
     price: number
     currency?: string
     totalHours: number
+    timeValue?: number | null
+    timeUnit?: PlanTimeUnit
     stripePriceId?: string | null
     features?: string[]
     badge?: string | null

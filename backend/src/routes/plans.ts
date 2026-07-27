@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express'
 import { authMiddleware, type AuthRequest } from '../middleware/auth.js'
-import { Plan, ensureDefaultPlans, type PlanSlug } from '../models/Plan.js'
+import { Plan, ensureDefaultPlans, type PlanSlug, type PlanTimeUnit } from '../models/Plan.js'
 
 const router = Router()
 
@@ -46,6 +46,8 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
             price: number
             currency: string
             totalHours: number
+            timeValue: number | null
+            timeUnit: PlanTimeUnit
             stripePriceId: string | null
             features: string[]
             badge: string | null
@@ -66,6 +68,8 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
             price: payload.price ?? 0,
             currency: payload.currency ?? 'USD',
             totalHours: payload.totalHours ?? 0,
+            timeValue: payload.timeValue ?? null,
+            timeUnit: payload.timeUnit ?? 'hours',
             stripePriceId: payload.stripePriceId ?? null,
             features: payload.features ?? [],
             badge: payload.badge ?? null,
