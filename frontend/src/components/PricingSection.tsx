@@ -40,7 +40,7 @@ export default function PricingSection() {
         void loadPlanCatalog()
         void getPlansCatalog().then((data) => {
             const activePlans = (data ?? []).filter((plan) => plan.active !== false)
-    
+
             setPlans(activePlans)
         })
     }, [])
@@ -236,7 +236,7 @@ export default function PricingSection() {
                 </div>
 
                 {/* Guarantee banner */}
-                <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 bg-amber-950/40 backdrop-blur-sm border border-amber-400/25 rounded-2xl px-8 py-5 shadow-sm max-w-3xl mx-auto">
+                {/* <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 bg-amber-950/40 backdrop-blur-sm border border-amber-400/25 rounded-2xl px-8 py-5 shadow-sm max-w-3xl mx-auto">
                     <div className="text-3xl shrink-0">🛡️</div>
                     <div>
                         <p className="font-primary text-[.82rem] font-black uppercase tracking-[2px] text-amber-400 mb-0.5">Garantía de Subida de Rango</p>
@@ -244,7 +244,7 @@ export default function PricingSection() {
                             Con el <strong className="text-amber-400">Retador Pack</strong> (4–5 sesiones) cubres <strong className="text-white">todos los temas</strong> del programa. Si los completas y no subes de rango, <strong className="text-white">te devolvemos el dinero</strong>.
                         </p>
                     </div>
-                </div>
+                </div> */}
             </div>
         </section>
     )
