@@ -269,7 +269,7 @@ export async function adminAddSession(
     token: string,
     userId: string,
     payload: { hours: number; topic: string; notes?: string; date?: string }
-): Promise<{ sessions: UserSession[]; completedHours: number }> {
+): Promise<{ sessions: UserSession[]; completedHours: number; assignment: IPlanAssignment | null }> {
     const response = await fetch(`${API_BASE}/admin/users/${userId}/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -310,7 +310,7 @@ export async function adminUpdateSession(
     userId: string,
     sessionId: string,
     payload: { hours?: number; topic?: string; notes?: string; date?: string }
-): Promise<{ sessions: UserSession[]; completedHours: number }> {
+): Promise<{ sessions: UserSession[]; completedHours: number; assignment: IPlanAssignment | null }> {
     const response = await fetch(`${API_BASE}/admin/users/${userId}/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -330,7 +330,7 @@ export async function adminDeleteSession(
     token: string,
     userId: string,
     sessionId: string
-): Promise<{ sessions: UserSession[]; completedHours: number }> {
+): Promise<{ sessions: UserSession[]; completedHours: number; assignment: IPlanAssignment | null }> {
     const response = await fetch(`${API_BASE}/admin/users/${userId}/sessions/${sessionId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },

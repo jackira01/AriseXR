@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { adminGetUserProfile, getUserProfile, createCheckoutSession, adminAssignPlan, getPlansCatalog, type PlanCatalogItem } from '@/lib/api'
+import { adminGetUserProfile, getUserProfile, createCheckoutSession, adminAssignPlan, getPlansCatalog, type PlanCatalogItem, type IPlanAssignment } from '@/lib/api'
 import { loadPlanCatalog, formatPlanTime } from '@/lib/plans'
 
 export default function PaquetesPanel({ adminUserId, selectedUserName, selectedUserEmail }: { adminUserId?: string; selectedUserName?: string; selectedUserEmail?: string }) {
@@ -14,6 +14,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
 
     const [adminUserName, setAdminUserName] = useState<string | null>(null)
     const [adminUserPlan, setAdminUserPlan] = useState<string | null>(null)
+    const [adminUserAssignment, setAdminUserAssignment] = useState<IPlanAssignment | null>(null)
     const [plans, setPlans] = useState<PlanCatalogItem[]>([])
     const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null)
     const [assigningPlan, setAssigningPlan] = useState<string | null>(null)
@@ -29,11 +30,13 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
             adminGetUserProfile(token, adminUserId).then((p) => {
                 setAdminUserName(p.name)
                 setAdminUserPlan(p.plan ?? null)
+                setAdminUserAssignment(p.currentAssignment ?? null)
             })
         } else {
             getUserProfile(token).then((p) => {
                 setAdminUserName(p.name)
                 setAdminUserPlan(p.plan ?? null)
+                setAdminUserAssignment(p.currentAssignment ?? null)
             })
         }
     }, [adminUserId, token])
@@ -67,6 +70,8 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
     const currentPlan = plans.find((p) =>
         adminUserPlan ? p.slug === adminUserPlan : false
     )
+
+    const remainingHours = adminUserAssignment?.remainingHours ?? 0
 
     return (
         <div className="flex flex-col gap-8">
@@ -114,7 +119,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                             <span className="font-primary text-[.6rem] font-black tracking-[3px] uppercase px-3 py-0.5 rounded-full bg-linear-to-r from-cyan-500/80 to-blue-500/80 text-white">Paquete Activo</span>
                         </div>
                         <div className="flex gap-5 mt-2 flex-wrap">
-                            {[formatPlanTime(currentPlan), 'seguimiento activo', 'contenido guiado'].map((d) => (
+                            {[formatPlanTime(currentPlan), `${remainingHours} hrs restantes`, 'seguimiento activo', 'contenido guiado'].map((d) => (
                                 <span key={d} className="font-primary text-[.78rem] text-[rgba(255,210,210,.6)]">{d}</span>
                             ))}
                         </div>
@@ -233,6 +238,11 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                             ) : adminUserId ? (
                                 confirmPlan === plan.name ? (
                                     <div className="flex flex-col gap-1.5">
+                                        {remainingHours > 0 && (
+                                            <p className="font-primary text-[.55rem] xl:text-[.5rem] text-center text-blue-400">
+                                                Se acumularán {remainingHours} hrs restantes del plan anterior
+                                            </p>
+                                        )}
                                         <p className="font-primary text-[.6rem] xl:text-[.55rem] text-center text-[rgba(255,210,210,.7)]">¿Asignar <strong className="text-white">{plan.name}</strong> a este usuario?</p>
                                         {assignError && (
                                             <p className="font-primary text-[.55rem] xl:text-[.5rem] text-center text-red-400">{assignError}</p>

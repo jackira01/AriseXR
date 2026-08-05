@@ -98,7 +98,19 @@ router.post('/users/:userId/sessions', authMiddleware, async (req: AuthRequest, 
         }
         user.sessions.push(newSession)
         await user.save()
-        res.status(201).json({ sessions: user.sessions, completedHours: user.sessions.reduce((a, s) => a + s.hours, 0) })
+
+        const assignment = await PlanAssignment.findOne({ userId: req.params.userId, status: 'active' })
+        if (assignment) {
+            assignment.usedHours = Math.max(0, assignment.usedHours + hours)
+            assignment.remainingHours = Math.max(0, assignment.grantedHours - assignment.usedHours)
+            await assignment.save()
+        }
+
+        res.status(201).json({
+            sessions: user.sessions,
+            completedHours: user.sessions.reduce((a, s) => a + s.hours, 0),
+            assignment: assignment ?? null,
+        })
     } catch {
         res.status(500).json({ message: 'Error interno del servidor' })
     }
@@ -121,13 +133,31 @@ router.patch('/users/:userId/sessions/:sessionId', authMiddleware, async (req: A
             .find((x) => x._id.toString() === req.params.sessionId)
         if (!s) { res.status(404).json({ message: 'Sesión no encontrada' }); return }
 
+        const oldHours = s.hours
+
         if (hours !== undefined && hours > 0) s.hours = hours
         if (topic?.trim()) s.topic = topic.trim()
         if (notes !== undefined) s.notes = notes.trim() || undefined
         if (date) s.date = date
 
         await user.save()
-        res.json({ sessions: user.sessions, completedHours: user.sessions.reduce((a, x) => a + x.hours, 0) })
+
+        let assignment = null
+        if (hours !== undefined && hours > 0 && hours !== oldHours) {
+            assignment = await PlanAssignment.findOne({ userId: req.params.userId, status: 'active' })
+            if (assignment) {
+                const delta = hours - oldHours
+                assignment.usedHours = Math.max(0, assignment.usedHours + delta)
+                assignment.remainingHours = Math.max(0, assignment.grantedHours - assignment.usedHours)
+                await assignment.save()
+            }
+        }
+
+        res.json({
+            sessions: user.sessions,
+            completedHours: user.sessions.reduce((a, x) => a + x.hours, 0),
+            assignment,
+        })
     } catch {
         res.status(500).json({ message: 'Error interno del servidor' })
     }
@@ -140,13 +170,26 @@ router.delete('/users/:userId/sessions/:sessionId', authMiddleware, async (req: 
         const user = await User.findById(req.params.userId)
         if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
 
-        const idx = (user.sessions as unknown as Array<{ _id: { toString(): string } }>)
+        const idx = (user.sessions as unknown as Array<{ _id: { toString(): string }; hours: number }>)
             .findIndex((x) => x._id.toString() === req.params.sessionId)
         if (idx === -1) { res.status(404).json({ message: 'Sesión no encontrada' }); return }
 
+        const sessionHours = (user.sessions[idx] as unknown as { hours: number }).hours
         user.sessions.splice(idx, 1)
         await user.save()
-        res.json({ sessions: user.sessions, completedHours: user.sessions.reduce((a, x) => a + x.hours, 0) })
+
+        const assignment = await PlanAssignment.findOne({ userId: req.params.userId, status: 'active' })
+        if (assignment) {
+            assignment.usedHours = Math.max(0, assignment.usedHours - sessionHours)
+            assignment.remainingHours = Math.max(0, assignment.grantedHours - assignment.usedHours)
+            await assignment.save()
+        }
+
+        res.json({
+            sessions: user.sessions,
+            completedHours: user.sessions.reduce((a, x) => a + x.hours, 0),
+            assignment: assignment ?? null,
+        })
     } catch {
         res.status(500).json({ message: 'Error interno del servidor' })
     }
@@ -348,15 +391,21 @@ router.patch('/users/:userId/plan', authMiddleware, async (req: AuthRequest, res
         }
 
         if (!plan) {
-            const user = await User.findByIdAndUpdate(
-                req.params.userId,
-                {
-                    plan: null,
-                    hasPlan: false,
-                    planActive: false,
-                    currentPlanSlug: null,
-                    currentPlanAssignmentId: null,
-                },
+                await PlanAssignment.updateOne(
+                    { userId: req.params.userId, status: 'active' },
+                    { status: 'archived' }
+                )
+
+                const user = await User.findByIdAndUpdate(
+                    req.params.userId,
+                    {
+                        plan: null,
+                        hasPlan: false,
+                        planActive: false,
+                        currentPlanSlug: null,
+                        currentPlanAssignmentId: null,
+                        additionalHours: 0,
+                    },
                 { new: true, select: 'name email plan hasPlan planActive currentPlanSlug currentPlanAssignmentId' }
             )
             if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
