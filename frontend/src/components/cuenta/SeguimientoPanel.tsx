@@ -28,14 +28,9 @@ import {
     type ITool,
     type IPlanAssignment,
 } from '@/lib/api'
-import { getPlanDefinition, loadPlanCatalog, formatPlanTime, type PlanTimeUnit } from '@/lib/plans'
+import { getPlanDefinition, loadPlanCatalog, formatPlanTime } from '@/lib/plans'
 
 // ── Plan base por defecto (en una app real vendría del perfil del usuario) ──────────
-const CURRENT_PLAN = {
-    name: 'Sin paquete activo',
-    totalHours: 0,
-}
-
 
 
 type TopicStatus = 'completado' | 'en-progreso' | 'pendiente'
@@ -215,35 +210,40 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
     }, [token, isAdmin, adminUserId])
 
     const assignment = userProfile?.currentAssignment as IPlanAssignment | null | undefined
+    const hasActiveAssignment = assignment !== null && assignment !== undefined && assignment.status === 'active'
 
-    let planCfg: { name: string; totalHours: number; timeValue?: number | null; timeUnit?: PlanTimeUnit | null }
-    let totalHours: number
-    let completedHours: number
-    let remainingHours: number
+    // ── Horas Actuales (plan actual) ─────────────────────────────────────
+    let currentPlanName: string
+    let currentTotalHours: number
+    let currentUsedHours: number
+    let currentRemainingHours: number
+    let currentAdditionalHours: number
+    let currentProgressPct: number
+    let currentPlanDef: ReturnType<typeof getPlanDefinition> | undefined
 
-    if (assignment && assignment.status === 'active') {
-        const planDef = getPlanDefinition(assignment.planSlug)
-        planCfg = {
-            name: planDef?.name ?? assignment.planSlug,
-            totalHours: assignment.grantedHours,
-            timeValue: planDef?.timeValue ?? null,
-            timeUnit: planDef?.timeUnit ?? 'hours',
-        }
-        totalHours = assignment.grantedHours
-        completedHours = assignment.usedHours
-        remainingHours = assignment.remainingHours
+    if (hasActiveAssignment) {
+        currentPlanDef = getPlanDefinition(assignment!.planSlug)
+        currentPlanName = currentPlanDef?.name ?? assignment!.planSlug
+        currentTotalHours = assignment!.grantedHours
+        currentAdditionalHours = userProfile?.additionalHours ?? 0
+        currentUsedHours = userSessions.reduce((acc, s) => acc + s.hours, 0)
+        currentRemainingHours = Math.max(0, currentTotalHours + currentAdditionalHours - currentUsedHours)
+        currentProgressPct = (currentTotalHours + currentAdditionalHours) > 0
+            ? Math.min(100, Math.round((currentUsedHours / (currentTotalHours + currentAdditionalHours)) * 100))
+            : 0
     } else {
-        planCfg = userProfile?.plan
-            ? (getPlanDefinition(userProfile.plan) ?? CURRENT_PLAN)
-            : CURRENT_PLAN
-        const baseHours = planCfg.totalHours ?? 0
-        const extraHours = userProfile?.additionalHours ?? 0
-        totalHours = baseHours + extraHours
-        completedHours = userSessions.reduce((acc, s) => acc + s.hours, 0)
-        remainingHours = Math.max(0, totalHours - completedHours)
+        currentPlanName = 'Sin plan activo'
+        currentTotalHours = 0
+        currentUsedHours = 0
+        currentRemainingHours = 0
+        currentAdditionalHours = 0
+        currentProgressPct = 0
+        currentPlanDef = undefined
     }
 
-    const progressPct = totalHours > 0 ? Math.min(100, Math.round((completedHours / totalHours) * 100)) : 0
+    // ── Horas Completadas (histórico) ────────────────────────────────────
+    const historicalCompletedHours = userSessions.reduce((acc, s) => acc + s.hours, 0)
+    const historicalSessionCount = userSessions.length
 
     const displaySessions = [...userSessions].sort((a, b) => {
         const timeA = new Date(a.date).getTime()
@@ -318,6 +318,16 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                 date: formDate,
             })
             setUserSessions(result.sessions)
+            if (result.assignment) {
+                setUserProfile((prev) => prev ? {
+                    ...prev,
+                    currentAssignment: {
+                        ...prev.currentAssignment!,
+                        usedHours: result.assignment!.usedHours,
+                        remainingHours: result.assignment!.remainingHours,
+                    }
+                } : prev)
+            }
             setHorasModal(null)
         } catch (err) {
             setFormError((err as Error).message)
@@ -336,8 +346,9 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
         setSubmitting(true)
         setFormError('')
         try {
-            const result = await adminAddBaseHours(token, adminUserId!, hrs)
-            setUserProfile((prev) => prev ? { ...prev, additionalHours: result.additionalHours } : prev)
+            await adminAddBaseHours(token, adminUserId!, hrs)
+            const profile = await adminGetUserProfile(token, adminUserId!)
+            setUserProfile(profile)
             setHorasModal(null)
         } catch (err) {
             setFormError((err as Error).message)
@@ -375,6 +386,16 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                 date: editForm.date,
             })
             setUserSessions(result.sessions)
+            if (result.assignment) {
+                setUserProfile((prev) => prev ? {
+                    ...prev,
+                    currentAssignment: {
+                        ...prev.currentAssignment!,
+                        usedHours: result.assignment!.usedHours,
+                        remainingHours: result.assignment!.remainingHours,
+                    }
+                } : prev)
+            }
             setEditSession(null)
         } catch (err) {
             setEditFormError((err as Error).message)
@@ -389,6 +410,16 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
         try {
             const result = await adminDeleteSession(token, adminUserId, sessionId)
             setUserSessions(result.sessions)
+            if (result.assignment) {
+                setUserProfile((prev) => prev ? {
+                    ...prev,
+                    currentAssignment: {
+                        ...prev.currentAssignment!,
+                        usedHours: result.assignment!.usedHours,
+                        remainingHours: result.assignment!.remainingHours,
+                    }
+                } : prev)
+            }
             setEditSession(null)
             setDeleteConfirmId(null)
         } catch (err) {
@@ -603,14 +634,24 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                         )}
                     </div>
 
-                    {/* Top row: progress + weekly breakdown */}
+                    {/* Top row: Horas Actuales + Herramientas */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                        {/* Main progress card — 2 cols */}
+                        {/* Horas Actuales — 2 cols */}
                         <div className="lg:col-span-2 bg-red-950/30 backdrop-blur-sm border border-red-800/20 rounded-2xl p-6">
                             <div className="flex items-start justify-between mb-1">
                                 <div>
-                                    <span className="font-primary text-[.85rem] font-semibold text-[rgba(255,210,210,.8)]">Horas Completadas</span>
-                                    <p className="font-primary text-[.72rem] text-[rgba(255,210,210,.4)] mt-0.5">{planCfg.name} · {formatPlanTime(planCfg)} en total</p>
+                                    <span className="font-primary text-[.85rem] font-semibold text-[rgba(255,210,210,.8)]">Horas Actuales</span>
+                                    {hasActiveAssignment ? (
+                                        <p className="font-primary text-[.72rem] text-[rgba(255,210,210,.4)] mt-0.5">
+                                            {currentPlanName}
+                                            {currentPlanDef && ` · ${formatPlanTime({ totalHours: currentTotalHours, timeValue: currentPlanDef.timeValue ?? null, timeUnit: currentPlanDef.timeUnit ?? 'hours' })} en total`}
+                                            {currentAdditionalHours > 0 && (
+                                                <span className="text-blue-400 font-semibold"> + {currentAdditionalHours} hrs adicionales</span>
+                                            )}
+                                        </p>
+                                    ) : (
+                                        <p className="font-primary text-[.72rem] text-[rgba(255,210,210,.3)] mt-0.5 italic">Actualmente no hay un plan activo</p>
+                                    )}
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     {/* Admin action buttons — only visible when admin has selected a user */}
@@ -632,35 +673,46 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                             </button>
                                         </div>
                                     )}
-                                    <span className="font-primary text-[2rem] font-black leading-none bg-linear-to-br from-red-400 to-rose-500 bg-clip-text text-transparent">
-                                        {progressPct}%
-                                    </span>
+                                    {hasActiveAssignment && (
+                                        <span className="font-primary text-[2rem] font-black leading-none bg-linear-to-br from-red-400 to-rose-500 bg-clip-text text-transparent">
+                                            {currentProgressPct}%
+                                        </span>
+                                    )}
                                 </div>
                             </div>
-                            {/* Main bar */}
-                            <div className="h-4 bg-red-950/60 rounded-full overflow-hidden border border-red-800/20 my-4 relative">
-                                <div
-                                    className="h-full bg-linear-to-r from-red-600 to-rose-500 rounded-full transition-all duration-700 flex items-center justify-end pr-2"
-                                    style={{ width: `${progressPct}%` }}
-                                >
-                                    <span className="text-[9px] font-black font-primary text-white/80 whitespace-nowrap">{completedHours}h</span>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-3 mt-2">
-                                {[
-                                    { label: 'Completadas', value: `${completedHours} hrs`, cls: 'text-rose-400' },
-                                    { label: 'Restantes', value: `${remainingHours} hrs`, cls: 'text-[rgba(255,210,210,.6)]' },
-                                    { label: 'Contratadas', value: `${totalHours} hrs`, cls: 'text-red-400' },
-                                ].map((s) => (
-                                    <div key={s.label} className="bg-red-950/30 rounded-xl p-3 text-center border border-red-800/15">
-                                        <p className={`font-primary text-[1.15rem] font-black leading-none mb-1 ${s.cls}`}>{s.value}</p>
-                                        <p className="font-primary text-[.65rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.4)]">{s.label}</p>
+                            {hasActiveAssignment ? (
+                                <>
+                                    {/* Main bar */}
+                                    <div className="h-4 bg-red-950/60 rounded-full overflow-hidden border border-red-800/20 my-4 relative">
+                                        <div
+                                            className="h-full bg-linear-to-r from-red-600 to-rose-500 rounded-full transition-all duration-700 flex items-center justify-end pr-2"
+                                            style={{ width: `${currentProgressPct}%` }}
+                                        >
+                                            <span className="text-[9px] font-black font-primary text-white/80 whitespace-nowrap">{currentUsedHours}h</span>
+                                        </div>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="grid grid-cols-4 gap-2.5 mt-2">
+                                        {[
+                                            { label: 'Completadas', value: `${currentUsedHours} hrs`, cls: 'text-rose-400' },
+                                            { label: 'Restantes', value: `${currentRemainingHours} hrs`, cls: 'text-[rgba(255,210,210,.6)]' },
+                                            { label: 'Contratadas', value: `${currentTotalHours} hrs`, cls: 'text-red-400' },
+                                            { label: 'Adicionales', value: `${currentAdditionalHours} hrs`, cls: 'text-blue-400' },
+                                        ].map((s) => (
+                                            <div key={s.label} className="bg-red-950/30 rounded-xl p-2.5 text-center border border-red-800/15">
+                                                <p className={`font-primary text-[1.05rem] font-black leading-none mb-0.5 ${s.cls}`}>{s.value}</p>
+                                                <p className="font-primary text-[.58rem] uppercase tracking-[1.2px] text-[rgba(255,210,210,.4)]">{s.label}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : (
+                                <p className="font-primary text-[.78rem] text-[rgba(255,210,210,.3)] py-4 text-center">
+                                    Asigna un paquete desde la sección Paquetes para ver el progreso aquí
+                                </p>
+                            )}
                         </div>
 
-                        {/* Weekly breakdown — replaced with Tools */}
+                        {/* Herramientas */}
                         <div className="bg-red-950/30 backdrop-blur-sm border border-red-800/20 rounded-2xl p-6 flex flex-col gap-3">
                             <span className="font-primary text-[.82rem] font-semibold text-[rgba(255,210,210,.8)]">Herramientas</span>
                             {loadingTools ? (
@@ -711,6 +763,31 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                     })}
                                 </div>
                             )}
+                        </div>
+                    </div>
+
+                    {/* ── Horas Completadas (histórico) ──────────────────── */}
+                    <div className="bg-red-950/30 backdrop-blur-sm border border-red-800/20 rounded-2xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <span className="font-primary text-[.85rem] font-semibold text-[rgba(255,210,210,.8)]">Horas Completadas</span>
+                                <p className="font-primary text-[.72rem] text-[rgba(255,210,210,.4)] mt-0.5">Historial acumulado de todas las sesiones</p>
+                            </div>
+                            <span className="font-primary text-[2rem] font-black leading-none bg-linear-to-br from-rose-400 to-red-500 bg-clip-text text-transparent">
+                                {historicalCompletedHours} hrs
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            {[
+                                { label: 'Total Completado', value: `${historicalCompletedHours} hrs`, cls: 'text-rose-400' },
+                                { label: 'Sesiones', value: `${historicalSessionCount}`, cls: 'text-[rgba(255,210,210,.6)]' },
+                                { label: 'Promedio', value: historicalSessionCount > 0 ? `${(historicalCompletedHours / historicalSessionCount).toFixed(1)} hrs` : '—', cls: 'text-red-400' },
+                            ].map((s) => (
+                                <div key={s.label} className="bg-red-950/30 rounded-xl p-3 text-center border border-red-800/15">
+                                    <p className={`font-primary text-[1.15rem] font-black leading-none mb-1 ${s.cls}`}>{s.value}</p>
+                                    <p className="font-primary text-[.65rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.4)]">{s.label}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
@@ -1156,7 +1233,7 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                             <button type="button" onClick={() => setHorasModal(null)} className="text-[rgba(255,210,210,.4)] hover:text-rose-400 leading-none text-xl">&times;</button>
                         </div>
                         <p className="font-primary text-[.75rem] text-[rgba(255,210,210,.5)]">
-                            Horas base actuales: <span className="text-blue-400 font-bold">{totalHours} hrs</span>
+                            Horas base actuales: <span className="text-blue-400 font-bold">{hasActiveAssignment ? currentTotalHours : (userProfile?.additionalHours ?? 0)} hrs</span>
                         </p>
                         <label className="flex flex-col gap-1.5">
                             <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Horas a adicionar</span>
