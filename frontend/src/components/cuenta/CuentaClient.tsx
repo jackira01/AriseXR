@@ -15,6 +15,9 @@ import { getUserProfile, type AdminUserSummary } from '@/lib/api'
 
 type Tab = 'seguimiento' | 'chat' | 'facturacion' | 'paquetes' | 'temas' | 'planes'
 
+// Panel de administración de planes: solo visible si la variable de entorno está en 'true'
+const PLANS_PANEL_ENABLED = process.env.NEXT_PUBLIC_ADMIN_PLANS_PANEL === 'true'
+
 const USER_TABS: { id: Tab; label: string; icon: string }[] = [
     { id: 'seguimiento', label: 'Seguimiento', icon: '📈' },
     { id: 'chat', label: 'Chat', icon: '💬' },
@@ -25,7 +28,7 @@ const USER_TABS: { id: Tab; label: string; icon: string }[] = [
 const ADMIN_TABS: { id: Tab; label: string; icon: string }[] = [
     ...USER_TABS,
     { id: 'temas', label: 'Temas', icon: '📚' },
-    { id: 'planes', label: 'Planes', icon: '🎯' },
+    ...(PLANS_PANEL_ENABLED ? [{ id: 'planes' as Tab, label: 'Planes', icon: '🎯' }] : []),
 ]
 
 export default function CuentaClient() {
@@ -190,7 +193,7 @@ export default function CuentaClient() {
                         {activeTab === 'facturacion' && <FacturacionPanel adminUserId={selectedUser?._id} selectedUserName={selectedUser?.name} selectedUserEmail={selectedUser?.email} />}
                         {activeTab === 'paquetes' && <PaquetesPanel adminUserId={selectedUser?._id} selectedUserName={selectedUser?.name} selectedUserEmail={selectedUser?.email} />}
                         {activeTab === 'temas' && isAdmin && <TemasPanel />}
-                        {activeTab === 'planes' && isAdmin && <PlanesPanel />}
+                        {activeTab === 'planes' && isAdmin && PLANS_PANEL_ENABLED && <PlanesPanel />}
                     </>
                 )}
             </main>
