@@ -34,17 +34,20 @@ export async function assignPlanToUser({
     const effectiveHours = grantedHours ?? plan?.totalHours ?? DEFAULT_HOURS_BY_PLAN[normalizedPlanSlug] ?? 0
 
     const previousActiveAssignment = await PlanAssignment.findOne({ userId, status: 'active' }).sort({ assignedAt: -1 })
-    let carriedOverRemainingHours = 0
+    let carriedOverGrantedHours = 0
     let carriedOverUsedHours = 0
 
     if (previousActiveAssignment) {
-        carriedOverRemainingHours = Math.max(0, previousActiveAssignment.remainingHours)
+        // Se acumulan las horas contratadas (no solo las restantes) para que,
+        // al restar las horas usadas que se arrastran, las restantes resulten
+        // en: restantes_anteriores + horas_del_nuevo_plan
+        carriedOverGrantedHours = Math.max(0, previousActiveAssignment.grantedHours)
         carriedOverUsedHours = previousActiveAssignment.usedHours
         previousActiveAssignment.status = 'archived'
         await previousActiveAssignment.save()
     }
 
-    const totalGrantedHours = effectiveHours + carriedOverRemainingHours
+    const totalGrantedHours = effectiveHours + carriedOverGrantedHours
 
     const assignment = await PlanAssignment.create({
         userId,
