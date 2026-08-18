@@ -19,6 +19,9 @@ import { User } from './models/User.js'
 const app = express()
 const httpServer = http.createServer(app)
 const PORT = process.env.PORT ?? 4000
+const SERVER_URL = process.env.NODE_ENV === 'production'
+    ? process.env.SERVER_URL_PRODUCTION ?? `port ${PORT}`
+    : `http://localhost:${PORT}`
 
 // ── Socket.io ─────────────────────────────────────────────────────────────────
 const SOCKET_ORIGINS = process.env.NODE_ENV === 'production'
@@ -156,6 +159,6 @@ io.on('connection', (socket) => {
 // ── Start ─────────────────────────────────────────────────────────────────────
 connectDB().then(() => {
     httpServer.listen(PORT, () => {
-        console.log(`🚀 Backend running on http://localhost:${PORT}`)
+        console.log(`🚀 Backend running on ${SERVER_URL}`)
     })
 })
