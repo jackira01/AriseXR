@@ -241,6 +241,34 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
         currentPlanDef = undefined
     }
 
+    // ── Progreso por tiempo (planes en días/meses, ej. "1 mes") ─────────
+    // Para planes con timeUnit 'days'/'months' la barra refleja el tiempo
+    // transcurrido desde la asignación, no las horas consumidas.
+    const MS_PER_DAY = 86_400_000
+    let timeProgress: { elapsedDays: number; totalDays: number; remainingDays: number; pct: number; durationLabel: string } | null = null
+    if (hasActiveAssignment && currentPlanDef?.timeValue && currentPlanDef.timeUnit && currentPlanDef.timeUnit !== 'hours') {
+        const start = new Date(assignment!.assignedAt)
+        const end = new Date(start)
+        if (currentPlanDef.timeUnit === 'months') {
+            end.setMonth(end.getMonth() + currentPlanDef.timeValue)
+        } else {
+            end.setDate(end.getDate() + currentPlanDef.timeValue)
+        }
+        const totalMs = end.getTime() - start.getTime()
+        const elapsedMs = Date.now() - start.getTime()
+        const totalDays = Math.max(1, Math.round(totalMs / MS_PER_DAY))
+        const elapsedDays = Math.min(totalDays, Math.max(0, Math.floor(elapsedMs / MS_PER_DAY)))
+        timeProgress = {
+            elapsedDays,
+            totalDays,
+            remainingDays: Math.max(0, totalDays - elapsedDays),
+            pct: totalMs > 0 ? Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100))) : 0,
+            durationLabel: formatPlanTime({ totalHours: currentTotalHours, timeValue: currentPlanDef.timeValue, timeUnit: currentPlanDef.timeUnit }),
+        }
+    }
+
+    const displayProgressPct = timeProgress ? timeProgress.pct : currentProgressPct
+
     // ── Horas Completadas (histórico) ────────────────────────────────────
     const historicalCompletedHours = userSessions.reduce((acc, s) => acc + s.hours, 0)
     const historicalSessionCount = userSessions.length
@@ -640,11 +668,12 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                         <div className="lg:col-span-2 bg-red-950/30 backdrop-blur-sm border border-red-800/20 rounded-2xl p-6">
                             <div className="flex items-start justify-between mb-1">
                                 <div>
-                                    <span className="font-primary text-[.85rem] font-semibold text-[rgba(255,210,210,.8)]">Horas Actuales</span>
+                                    <span className="font-primary text-[.85rem] font-semibold text-[rgba(255,210,210,.8)]">{timeProgress ? 'Progreso del Plan' : 'Horas Actuales'}</span>
                                     {hasActiveAssignment ? (
                                         <p className="font-primary text-[.72rem] text-[rgba(255,210,210,.4)] mt-0.5">
                                             {currentPlanName}
                                             {currentPlanDef && ` · ${formatPlanTime({ totalHours: currentTotalHours, timeValue: currentPlanDef.timeValue ?? null, timeUnit: currentPlanDef.timeUnit ?? 'hours' })} en total`}
+                                            {timeProgress && ` · ${currentUsedHours}h consumidas`}
                                             {currentAdditionalHours > 0 && (
                                                 <span className="text-blue-400 font-semibold"> + {currentAdditionalHours} hrs adicionales</span>
                                             )}
@@ -675,7 +704,7 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                     )}
                                     {hasActiveAssignment && (
                                         <span className="font-primary text-[2rem] font-black leading-none bg-linear-to-br from-red-400 to-rose-500 bg-clip-text text-transparent">
-                                            {currentProgressPct}%
+                                            {displayProgressPct}%
                                         </span>
                                     )}
                                 </div>
@@ -686,18 +715,25 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                     <div className="h-4 bg-red-950/60 rounded-full overflow-hidden border border-red-800/20 my-4 relative">
                                         <div
                                             className="h-full bg-linear-to-r from-red-600 to-rose-500 rounded-full transition-all duration-700 flex items-center justify-end pr-2"
-                                            style={{ width: `${currentProgressPct}%` }}
+                                            style={{ width: `${displayProgressPct}%` }}
                                         >
-                                            <span className="text-[9px] font-black font-primary text-white/80 whitespace-nowrap">{currentUsedHours}h</span>
+                                            <span className="text-[9px] font-black font-primary text-white/80 whitespace-nowrap">
+                                                {timeProgress ? `día ${timeProgress.elapsedDays}/${timeProgress.totalDays}` : `${currentUsedHours}h`}
+                                            </span>
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-4 gap-2.5 mt-2">
-                                        {[
+                                        {(timeProgress ? [
+                                            { label: 'Transcurridos', value: `${timeProgress.elapsedDays} ${timeProgress.elapsedDays === 1 ? 'día' : 'días'}`, cls: 'text-rose-400' },
+                                            { label: 'Restantes', value: `${timeProgress.remainingDays} ${timeProgress.remainingDays === 1 ? 'día' : 'días'}`, cls: 'text-[rgba(255,210,210,.6)]' },
+                                            { label: 'Duración', value: timeProgress.durationLabel, cls: 'text-red-400' },
+                                            { label: 'Adicionales', value: `${currentAdditionalHours} hrs`, cls: 'text-blue-400' },
+                                        ] : [
                                             { label: 'Completadas', value: `${currentUsedHours} hrs`, cls: 'text-rose-400' },
                                             { label: 'Restantes', value: `${currentRemainingHours} hrs`, cls: 'text-[rgba(255,210,210,.6)]' },
                                             { label: 'Contratadas', value: `${currentTotalHours} hrs`, cls: 'text-red-400' },
                                             { label: 'Adicionales', value: `${currentAdditionalHours} hrs`, cls: 'text-blue-400' },
-                                        ].map((s) => (
+                                        ]).map((s) => (
                                             <div key={s.label} className="bg-red-950/30 rounded-xl p-2.5 text-center border border-red-800/15">
                                                 <p className={`font-primary text-[1.05rem] font-black leading-none mb-0.5 ${s.cls}`}>{s.value}</p>
                                                 <p className="font-primary text-[.58rem] uppercase tracking-[1.2px] text-[rgba(255,210,210,.4)]">{s.label}</p>

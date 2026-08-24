@@ -60,17 +60,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     callbacks: {
         async signIn({ user, account }) {
             if (account?.provider === 'google') {
+                const url = `${process.env.BACKEND_URL ?? 'http://localhost:4000'}/api/auth/register-google`
                 try {
                     // Registrar o recuperar el usuario de Google (upsert, sin verificación de correo)
                     const res = await fetch(
-                        `${process.env.BACKEND_URL ?? 'http://localhost:4000'}/api/auth/register-google`,
+                        url,
                         {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ email: user.email, name: user.name }),
                         }
                     )
-                    if (!res.ok) return false
+                    if (!res.ok) {
+                        const body = await res.text()
+                        console.error(`[AUTH][GOOGLE] register-google respondió ${res.status}: ${body} (email=${user.email}, name=${user.name}, url=${url})`)
+                        return false
+                    }
                     const data = await res.json() as { user?: { id: string; plan?: string; role?: string }; token?: string }
                     if (data.user) {
                         ; (user as Record<string, unknown>).plan = data.user.plan
@@ -79,7 +84,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                             ; (user as Record<string, unknown>).dbId = data.user.id
                     }
                     return true
-                } catch {
+                } catch (err) {
+                    console.error(`[AUTH][GOOGLE] Error de red llamando a ${url}:`, err)
                     return false
                 }
             }

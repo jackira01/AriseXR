@@ -55,6 +55,14 @@ app.use('/api/topics', topicsRoutes)
 app.use('/api/chat', chatRoutes)
 app.use('/api/plans', plansRoutes)
 
+app.get('/', (_req, res) => {
+    res.json({
+        message: 'Bienvenido a la API de AriseXR',
+        status: 'ok',
+        version: '1.0.0',
+    })
+})
+
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok' })
 })
