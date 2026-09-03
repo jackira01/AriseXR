@@ -1,6 +1,13 @@
 import dotenv from 'dotenv'
 import path from 'path'
-dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
+
+if (process.argv[2] === 'test') {
+    process.env.NODE_ENV = 'test'
+    process.env.ENV_FILE = '.env.test'
+}
+
+const envFile = process.env.ENV_FILE ?? (process.env.NODE_ENV === 'test' ? '.env.test' : path.join(__dirname, '..', '..', '.env'))
+dotenv.config({ path: envFile, override: envFile === '.env.test' })
 
 import mongoose from 'mongoose'
 import { Plan, type IPlanDefinition } from '../models/Plan.js'

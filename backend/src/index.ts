@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import './config/loadEnv.js'
 import http from 'http'
 import express from 'express'
 import cors from 'cors'
@@ -15,6 +15,17 @@ import paymentsRoutes from './routes/payments.js'
 import plansRoutes from './routes/plans.js'
 import { Message } from './models/Message.js'
 import { User } from './models/User.js'
+
+function getDatabaseName(uri: string | undefined): string {
+    if (!uri) return 'no configurada'
+
+    try {
+        const databasePath = new URL(uri).pathname.replace(/^\//, '')
+        return databasePath.split('?')[0] || 'por defecto'
+    } catch {
+        return 'URI inválida'
+    }
+}
 
 const app = express()
 const httpServer = http.createServer(app)
@@ -166,6 +177,8 @@ io.on('connection', (socket) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 connectDB().then(() => {
+    console.log(`[BOOT] Entorno: ${process.env.NODE_ENV ?? 'development'}`)
+    console.log(`[BOOT] Base de datos: ${getDatabaseName(process.env.MONGODB_URI)}`)
     httpServer.listen(PORT, () => {
         console.log(`🚀 Backend running on ${SERVER_URL}`)
     })
