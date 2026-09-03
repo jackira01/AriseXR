@@ -93,10 +93,10 @@ router.post(
     express.raw({ type: 'application/json' }),
     async (req: Request, res: Response) => {
         const sig = req.headers['stripe-signature'] as string
-        let event: ReturnType<typeof stripe.webhooks.constructEvent>
+        let event: Awaited<ReturnType<typeof stripe.webhooks.constructEventAsync>>
 
         try {
-            event = stripe.webhooks.constructEvent(
+            event = await stripe.webhooks.constructEventAsync(
                 req.body as Buffer,
                 sig,
                 process.env.STRIPE_WEBHOOK_SECRET as string
