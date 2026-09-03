@@ -248,11 +248,15 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
     let timeProgress: { elapsedDays: number; totalDays: number; remainingDays: number; pct: number; durationLabel: string } | null = null
     if (hasActiveAssignment && currentPlanDef?.timeValue && currentPlanDef.timeUnit && currentPlanDef.timeUnit !== 'hours') {
         const start = new Date(assignment!.assignedAt)
-        const end = new Date(start)
-        if (currentPlanDef.timeUnit === 'months') {
-            end.setMonth(end.getMonth() + currentPlanDef.timeValue)
-        } else {
-            end.setDate(end.getDate() + currentPlanDef.timeValue)
+        const end = assignment!.expiresAt
+            ? new Date(assignment!.expiresAt)
+            : new Date(start)
+        if (!assignment!.expiresAt) {
+            if (currentPlanDef.timeUnit === 'months') {
+                end.setMonth(end.getMonth() + currentPlanDef.timeValue)
+            } else {
+                end.setDate(end.getDate() + currentPlanDef.timeValue)
+            }
         }
         const totalMs = end.getTime() - start.getTime()
         const elapsedMs = Date.now() - start.getTime()
@@ -262,7 +266,8 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
             elapsedDays,
             totalDays,
             remainingDays: Math.max(0, totalDays - elapsedDays),
-            pct: totalMs > 0 ? Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100))) : 0,
+            // Los planes mensuales avanzan en pasos de un día, no por horas consumidas.
+            pct: totalDays > 0 ? Math.min(100, Math.max(0, Math.round((elapsedDays / totalDays) * 100))) : 0,
             durationLabel: formatPlanTime({ totalHours: currentTotalHours, timeValue: currentPlanDef.timeValue, timeUnit: currentPlanDef.timeUnit }),
         }
     }

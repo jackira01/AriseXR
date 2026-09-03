@@ -5,7 +5,7 @@ import { Invoice } from '../models/Invoice.js'
 import { Topic } from '../models/Topic.js'
 import { Category } from '../models/Category.js'
 import { PlanAssignment } from '../models/PlanAssignment.js'
-import { assignPlanToUser, updateAssignment, adjustAssignmentHours } from '../lib/planLifecycle.js'
+import { assignPlanToUser, updateAssignment, adjustAssignmentHours, getCurrentActiveAssignment } from '../lib/planLifecycle.js'
 import type { PlanSlug } from '../models/Plan.js'
 
 const router = Router()
@@ -40,7 +40,8 @@ router.get('/users/:userId/profile', authMiddleware, async (req: AuthRequest, re
     try {
         const user = await User.findById(req.params.userId).select('-password').lean()
         if (!user) { res.status(404).json({ message: 'Usuario no encontrado' }); return }
-        const currentAssignment = await PlanAssignment.findOne({ userId: req.params.userId, status: 'active' }).sort({ assignedAt: -1 }).lean()
+        const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+        const currentAssignment = await getCurrentActiveAssignment(userId)
         res.json({ ...user, currentAssignment })
     } catch {
         res.status(500).json({ message: 'Error interno del servidor' })
@@ -99,8 +100,9 @@ router.post('/users/:userId/sessions', authMiddleware, async (req: AuthRequest, 
         user.sessions.push(newSession)
         await user.save()
 
-        const assignment = await PlanAssignment.findOne({ userId: req.params.userId, status: 'active' })
-        if (assignment) {
+        const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+        const assignment = await getCurrentActiveAssignment(userId)
+        if (assignment && assignment.trackingMode !== 'time') {
             assignment.usedHours = Math.max(0, assignment.usedHours + hours)
             assignment.remainingHours = Math.max(0, assignment.grantedHours - assignment.usedHours)
             await assignment.save()
@@ -144,8 +146,9 @@ router.patch('/users/:userId/sessions/:sessionId', authMiddleware, async (req: A
 
         let assignment = null
         if (hours !== undefined && hours > 0 && hours !== oldHours) {
-            assignment = await PlanAssignment.findOne({ userId: req.params.userId, status: 'active' })
-            if (assignment) {
+            const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+            assignment = await getCurrentActiveAssignment(userId)
+            if (assignment && assignment.trackingMode !== 'time') {
                 const delta = hours - oldHours
                 assignment.usedHours = Math.max(0, assignment.usedHours + delta)
                 assignment.remainingHours = Math.max(0, assignment.grantedHours - assignment.usedHours)
@@ -178,8 +181,9 @@ router.delete('/users/:userId/sessions/:sessionId', authMiddleware, async (req: 
         user.sessions.splice(idx, 1)
         await user.save()
 
-        const assignment = await PlanAssignment.findOne({ userId: req.params.userId, status: 'active' })
-        if (assignment) {
+        const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+        const assignment = await getCurrentActiveAssignment(userId)
+        if (assignment && assignment.trackingMode !== 'time') {
             assignment.usedHours = Math.max(0, assignment.usedHours - sessionHours)
             assignment.remainingHours = Math.max(0, assignment.grantedHours - assignment.usedHours)
             await assignment.save()

@@ -3,6 +3,7 @@ import type { PlanSlug } from './Plan.js'
 
 export type PlanAssignmentStatus = 'active' | 'archived' | 'expired'
 export type PlanAssignmentSource = 'stripe' | 'admin' | 'manual' | 'legacy'
+export type PlanAssignmentTrackingMode = 'hours' | 'time'
 
 export interface IPlanAssignment extends Document {
     userId: mongoose.Types.ObjectId
@@ -13,9 +14,11 @@ export interface IPlanAssignment extends Document {
     remainingHours: number
     status: PlanAssignmentStatus
     source: PlanAssignmentSource
+    trackingMode?: PlanAssignmentTrackingMode
     notes?: string
     invoiceId?: string | null
     assignedAt: Date
+    expiresAt?: Date | null
     createdAt: Date
     updatedAt: Date
 }
@@ -52,11 +55,23 @@ const PlanAssignmentSchema = new Schema<IPlanAssignment>(
             enum: ['stripe', 'admin', 'manual', 'legacy'],
             default: 'manual',
         },
+        trackingMode: {
+            type: String,
+            enum: ['hours', 'time'],
+            default: 'hours',
+        },
         notes: { type: String, default: '' },
         invoiceId: { type: String, default: null },
         assignedAt: { type: Date, default: Date.now },
+        expiresAt: { type: Date, default: null, index: true },
     },
     { timestamps: true }
+)
+
+// Stripe puede reenviar el mismo evento; una compra solo puede generar una asignación.
+PlanAssignmentSchema.index(
+    { invoiceId: 1 },
+    { unique: true, partialFilterExpression: { invoiceId: { $type: 'string' } } }
 )
 
 export const PlanAssignment = mongoose.model<IPlanAssignment>('PlanAssignment', PlanAssignmentSchema)

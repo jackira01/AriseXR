@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express'
 import { authMiddleware, type AuthRequest } from '../middleware/auth.js'
 import { User } from '../models/User.js'
-import { PlanAssignment } from '../models/PlanAssignment.js'
+import { getCurrentActiveAssignment } from '../lib/planLifecycle.js'
 
 const router = Router()
 
@@ -14,7 +14,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
             return
         }
 
-        const currentAssignment = await PlanAssignment.findOne({ userId: req.userId, status: 'active' }).sort({ assignedAt: -1 }).lean()
+        const currentAssignment = await getCurrentActiveAssignment(req.userId!)
         const payload = {
             ...user.toObject(),
             currentAssignment,

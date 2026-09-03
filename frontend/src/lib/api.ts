@@ -63,9 +63,11 @@ export interface IPlanAssignment {
     remainingHours: number
     status: 'active' | 'archived' | 'expired'
     source: string
+    trackingMode?: 'hours' | 'time'
     notes?: string
     invoiceId?: string | null
     assignedAt: string
+    expiresAt?: string | null
     createdAt?: string
     updatedAt?: string
 }

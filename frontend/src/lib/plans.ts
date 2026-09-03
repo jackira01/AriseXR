@@ -10,7 +10,7 @@ export interface PlanDefinition {
     timeUnit?: PlanTimeUnit
 }
 
-// Tiempo del plan para mostrar en UI (el consumo interno sigue siendo por horas).
+// Tiempo del plan para mostrar en UI. Los planes mensuales no consumen horas.
 // Si no hay timeValue/timeUnit definidos, muestra totalHours en horas.
 export function formatPlanTime(plan: { totalHours: number; timeValue?: number | null; timeUnit?: PlanTimeUnit | null }): string {
     const unit = plan.timeUnit ?? 'hours'

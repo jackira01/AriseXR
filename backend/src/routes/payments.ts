@@ -10,6 +10,7 @@ import { assignPlanToUser } from '../lib/planLifecycle.js'
 const router = Router()
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
+const allowPromotionCodes = process.env.STRIPE_ALLOW_PROMOTION_CODES === 'true'
 
 const STRIPE_REDIRECT_URL = process.env.NODE_ENV === 'production'
     ? process.env.CLIENT_URL_PRODUCTION
@@ -24,6 +25,8 @@ const PLAN_LABELS: Record<string, string> = {
     no_life: 'No Life Pack',
     challenger: 'Chall Pack',
 }
+
+const VALID_PLAN_SLUGS = new Set(['intro', 'silver', 'gold', 'esmerald', 'diamond', 'no_life', 'challenger'])
 
 // ── POST /api/payments/create-checkout-session ────────────────────────────────
 router.post(
@@ -57,6 +60,7 @@ router.post(
                 client_reference_id: userId,
                 line_items: [{ price: priceId, quantity: 1 }],
                 metadata: { plan },
+                allow_promotion_codes: allowPromotionCodes,
                 success_url: `${STRIPE_REDIRECT_URL}/cuenta`,
                 cancel_url: `${STRIPE_REDIRECT_URL}/cuenta`,
             })
@@ -116,59 +120,66 @@ router.post(
             const userId = session.client_reference_id
             const plan = session.metadata?.plan as 'intro' | 'silver' | 'gold' | 'esmerald' | 'diamond' | 'no_life' | 'challenger' | undefined
 
-            if (userId && plan) {
-                try {
-                    const amountTotal = session.amount_total ?? 0
-                    const currency = (session.currency ?? 'usd').toUpperCase()
-                    const planLabel = PLAN_LABELS[plan] ?? plan
-                    const description = `${planLabel} — Pago único`
-                    const dateLabel = new Date().toLocaleDateString('es-MX', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                    })
+            if (!userId || !plan || !VALID_PLAN_SLUGS.has(plan)) {
+                res.status(400).json({ error: 'checkout.session.completed sin usuario o plan válido' })
+                return
+            }
 
-                    // 1. Crear documento Invoice (upsert para idempotencia)
-                    await Invoice.findOneAndUpdate(
-                        { stripeSessionId: session.id },
-                        {
-                            $setOnInsert: {
-                                userId,
-                                stripeSessionId: session.id,
-                                plan,
-                                planLabel,
-                                description,
-                                amount: amountTotal / 100,
-                                currency,
-                                status: 'Pagado',
-                            },
+            try {
+                const amountTotal = session.amount_total ?? 0
+                const currency = (session.currency ?? 'usd').toUpperCase()
+                const planLabel = PLAN_LABELS[plan] ?? plan
+                const description = `${planLabel} — Pago único`
+                const dateLabel = new Date().toLocaleDateString('es-MX', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                })
+
+                // 1. Crear documento Invoice (upsert para idempotencia)
+                await Invoice.findOneAndUpdate(
+                    { stripeSessionId: session.id },
+                    {
+                        $setOnInsert: {
+                            userId,
+                            stripeSessionId: session.id,
+                            plan,
+                            planLabel,
+                            description,
+                            amount: amountTotal / 100,
+                            currency,
+                            status: 'Pagado',
                         },
-                        { upsert: true, new: true }
-                    )
+                    },
+                    { upsert: true, new: true }
+                )
 
-                    // 2. Activar plan en User y registrar factura embebida
-                    await assignPlanToUser({
-                        userId,
-                        planSlug: plan,
-                        source: 'stripe',
-                        invoiceId: session.id,
-                    })
+                // 2. Activar plan en User. invoiceId evita duplicar asignaciones si Stripe reintenta.
+                await assignPlanToUser({
+                    userId,
+                    planSlug: plan,
+                    source: 'stripe',
+                    invoiceId: session.id,
+                    assignedAt: new Date(event.created * 1000),
+                })
 
-                    await User.findByIdAndUpdate(userId, {
-                        $push: {
-                            invoices: {
-                                invoiceId: session.id,
-                                date: dateLabel,
-                                description,
-                                amount: amountTotal / 100,
-                                currency,
-                                status: 'Pagado',
-                            },
+                await User.findByIdAndUpdate(userId, {
+                    $addToSet: {
+                        invoices: {
+                            invoiceId: session.id,
+                            date: dateLabel,
+                            description,
+                            amount: amountTotal / 100,
+                            currency,
+                            status: 'Pagado',
                         },
-                    })
-                } catch (err) {
-                    console.error('[Stripe] Error procesando checkout.session.completed:', err)
-                }
+                    },
+                })
+            } catch (err) {
+                // 500 hace que Stripe reintente; el invoiceId hace el procesamiento idempotente.
+                console.error('[Stripe] Error procesando checkout.session.completed:', err)
+                res.status(500).json({ error: 'No se pudo procesar el pago' })
+                return
             }
         }
 
