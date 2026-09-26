@@ -13,6 +13,7 @@ const DEFAULT_HOURS_BY_PLAN: Record<PlanSlug, number> = {
 }
 
 const TIME_BASED_PLAN_SLUGS: PlanSlug[] = ['no_life']
+const MS_PER_DAY = 86_400_000
 
 export function calculatePlanExpiresAt(
     assignedAt: Date,
@@ -34,31 +35,26 @@ export function calculatePlanExpiresAt(
     return expiresAt
 }
 
+export function calculatePlanTotalDays(assignedAt: Date, expiresAt: Date | null): number {
+    if (!expiresAt) return 0
+    return Math.max(1, Math.round((expiresAt.getTime() - assignedAt.getTime()) / MS_PER_DAY))
+}
+
 export async function getCurrentActiveAssignment(userId: string) {
     const assignment = await PlanAssignment.findOne({ userId, status: 'active' }).sort({ assignedAt: -1 })
     if (!assignment) return null
 
-    // Normaliza asignaciones antiguas de no_life creadas antes del seguimiento por calendario.
-    if (assignment.planSlug === 'no_life' && (assignment.trackingMode !== 'time' || !assignment.expiresAt)) {
+    // Normaliza asignaciones antiguas de planes de tiempo al contador manual.
+    if (assignment.planSlug === 'no_life' && (assignment.trackingMode !== 'time' || !assignment.expiresAt || !assignment.totalDays)) {
+        const plan = await Plan.findOne({ slug: assignment.planSlug })
         assignment.trackingMode = 'time'
-        assignment.grantedHours = 0
-        assignment.usedHours = 0
-        assignment.remainingHours = 0
-        assignment.expiresAt = calculatePlanExpiresAt(assignment.assignedAt, 1, 'months')
+        assignment.grantedHours = assignment.grantedHours || plan?.totalHours || DEFAULT_HOURS_BY_PLAN[assignment.planSlug]
+        assignment.remainingHours = Math.max(0, assignment.grantedHours - assignment.usedHours)
+        assignment.expiresAt = assignment.expiresAt ?? calculatePlanExpiresAt(assignment.assignedAt, plan?.timeValue ?? 1, plan?.timeUnit ?? 'months')
+        assignment.totalDays = calculatePlanTotalDays(assignment.assignedAt, assignment.expiresAt)
+        assignment.progressedDays = Math.min(assignment.totalDays, assignment.progressedDays ?? 0)
+        assignment.remainingDays = Math.max(0, assignment.totalDays - assignment.progressedDays)
         await assignment.save()
-    }
-
-    if (assignment.expiresAt && assignment.expiresAt <= new Date()) {
-        assignment.status = 'expired'
-        await assignment.save()
-        await User.findByIdAndUpdate(userId, {
-            plan: null,
-            hasPlan: false,
-            planActive: false,
-            currentPlanSlug: null,
-            currentPlanAssignmentId: null,
-        })
-        return null
     }
 
     return assignment
@@ -89,12 +85,11 @@ export async function assignPlanToUser({
         ? 'time'
         : 'hours'
     const configuredHours = plan?.totalHours ?? 0
-    const effectiveHours = trackingMode === 'time'
-        ? 0
-        : grantedHours ?? (configuredHours > 0 ? configuredHours : DEFAULT_HOURS_BY_PLAN[normalizedPlanSlug]) ?? 0
+    const effectiveHours = grantedHours ?? (configuredHours > 0 ? configuredHours : DEFAULT_HOURS_BY_PLAN[normalizedPlanSlug]) ?? 0
 
     const assignmentStart = assignedAt ?? new Date()
     const expiresAt = calculatePlanExpiresAt(assignmentStart, plan?.timeValue, plan?.timeUnit)
+    const totalDays = trackingMode === 'time' ? calculatePlanTotalDays(assignmentStart, expiresAt) : 0
 
     if (invoiceId) {
         const existingStripeAssignment = await PlanAssignment.findOne({ userId, invoiceId, source: 'stripe' }).sort({ assignedAt: -1 })
@@ -133,6 +128,10 @@ export async function assignPlanToUser({
         invoiceId: invoiceId ?? null,
         assignedAt: assignmentStart,
         expiresAt,
+        totalDays,
+        progressedDays: 0,
+        remainingDays: totalDays,
+        dayProgressEntries: [],
     })
 
     await User.findByIdAndUpdate(userId, {
@@ -194,6 +193,47 @@ export async function adjustAssignmentHours({
         assignment.usedHours = Math.max(0, assignment.usedHours + usedHoursDelta)
     }
     assignment.remainingHours = Math.max(0, assignment.grantedHours - assignment.usedHours)
+
+    await assignment.save()
+    return assignment
+}
+
+export async function progressAssignmentDays({
+    assignmentId,
+    userId,
+    days,
+    notes,
+}: {
+    assignmentId: string
+    userId: string
+    days: number
+    notes?: string
+}) {
+    const assignment = await PlanAssignment.findOne({ _id: assignmentId, userId })
+    if (!assignment) throw new Error('Asignación no encontrada')
+    if (assignment.trackingMode !== 'time') throw new Error('La asignación no es un plan por tiempo')
+    if (!Number.isInteger(days) || days <= 0) throw new Error('Los días deben ser un número entero mayor que 0')
+
+    const totalDays = assignment.totalDays ?? 0
+    const progressedDays = assignment.progressedDays ?? 0
+    const daysToAdd = Math.min(days, Math.max(0, totalDays - progressedDays))
+    if (daysToAdd <= 0) throw new Error('El plan ya alcanzó su duración total')
+
+    assignment.progressedDays = progressedDays + daysToAdd
+    assignment.remainingDays = Math.max(0, totalDays - assignment.progressedDays)
+    assignment.dayProgressEntries = assignment.dayProgressEntries ?? []
+    assignment.dayProgressEntries.push({ days: daysToAdd, notes: notes?.trim() || undefined, addedAt: new Date() })
+
+    if (assignment.remainingDays === 0) {
+        assignment.status = 'expired'
+        await User.findByIdAndUpdate(userId, {
+            plan: null,
+            hasPlan: false,
+            planActive: false,
+            currentPlanSlug: null,
+            currentPlanAssignmentId: null,
+        })
+    }
 
     await assignment.save()
     return assignment

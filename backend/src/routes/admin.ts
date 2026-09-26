@@ -5,7 +5,7 @@ import { Invoice } from '../models/Invoice.js'
 import { Topic } from '../models/Topic.js'
 import { Category } from '../models/Category.js'
 import { PlanAssignment } from '../models/PlanAssignment.js'
-import { assignPlanToUser, updateAssignment, adjustAssignmentHours, getCurrentActiveAssignment } from '../lib/planLifecycle.js'
+import { assignPlanToUser, updateAssignment, adjustAssignmentHours, progressAssignmentDays, getCurrentActiveAssignment } from '../lib/planLifecycle.js'
 import type { PlanSlug } from '../models/Plan.js'
 
 const router = Router()
@@ -380,6 +380,26 @@ router.patch('/users/:userId/plan-assignments/:assignmentId/adjust-hours', authM
         res.json({ assignment })
     } catch (err) {
         res.status(500).json({ message: (err as Error).message ?? 'Error interno del servidor' })
+    }
+})
+
+// PATCH /api/admin/users/:userId/plan-assignments/:assignmentId/progress-days — avanzar días manualmente
+router.patch('/users/:userId/plan-assignments/:assignmentId/progress-days', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const { days, notes } = req.body as { days?: number; notes?: string }
+        if (!Number.isInteger(days) || (days as number) <= 0) {
+            res.status(400).json({ message: 'Los días deben ser un número entero mayor que 0' })
+            return
+        }
+
+        const assignmentId = Array.isArray(req.params.assignmentId) ? req.params.assignmentId[0] : req.params.assignmentId
+        const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+        const assignment = await progressAssignmentDays({ assignmentId, userId, days: days as number, notes })
+
+        res.json({ assignment })
+    } catch (err) {
+        res.status(400).json({ message: (err as Error).message ?? 'No se pudieron registrar los días' })
     }
 })
 

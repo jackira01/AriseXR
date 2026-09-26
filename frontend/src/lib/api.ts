@@ -68,8 +68,19 @@ export interface IPlanAssignment {
     invoiceId?: string | null
     assignedAt: string
     expiresAt?: string | null
+    totalDays?: number
+    progressedDays?: number
+    remainingDays?: number
+    dayProgressEntries?: IPlanDayProgressEntry[]
     createdAt?: string
     updatedAt?: string
+}
+
+export interface IPlanDayProgressEntry {
+    _id?: string
+    days: number
+    notes?: string
+    addedAt: string
 }
 
 export type PlanTimeUnit = 'hours' | 'days' | 'months'
@@ -296,6 +307,28 @@ export async function adminAddBaseHours(
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ additionalHours }),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+/**
+ * Admin: registrar días avanzados manualmente en un plan por tiempo.
+ */
+export async function adminProgressPlanDays(
+    token: string,
+    userId: string,
+    assignmentId: string,
+    days: number,
+    notes?: string
+): Promise<{ assignment: IPlanAssignment }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/plan-assignments/${assignmentId}/progress-days`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ days, notes }),
     })
     if (!response.ok) {
         const err = await response.json().catch(() => ({})) as { message?: string }

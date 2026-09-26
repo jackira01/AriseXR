@@ -120,7 +120,7 @@ export default function PaquetesPanel({ adminUserId, selectedUserName, selectedU
                             <span className="font-primary text-[.6rem] font-black tracking-[3px] uppercase px-3 py-0.5 rounded-full bg-linear-to-r from-cyan-500/80 to-blue-500/80 text-white">Paquete Activo</span>
                         </div>
                         <div className="flex gap-5 mt-2 flex-wrap">
-                            {[formatPlanTime(currentPlan), isTimeBasedPlan ? 'vigencia por calendario' : `${remainingHours} hrs restantes`, 'seguimiento activo', 'contenido guiado'].map((d) => (
+                            {[formatPlanTime(currentPlan), isTimeBasedPlan ? 'progreso manual por días' : `${remainingHours} hrs restantes`, 'seguimiento activo', 'contenido guiado'].map((d) => (
                                 <span key={d} className="font-primary text-[.78rem] text-[rgba(255,210,210,.6)]">{d}</span>
                             ))}
                         </div>

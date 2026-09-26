@@ -8,6 +8,7 @@ import {
     getUserProfile,
     adminAddSession,
     adminAddBaseHours,
+    adminProgressPlanDays,
     adminUpdateUserTopicStatus,
     adminUpsertTopicStatus,
     adminUpdateSession,
@@ -106,7 +107,9 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
 
     // ── Horas modals ──────────────────────────────────────────────────────
     const [horasModal, setHorasModal] = useState<'complete' | 'add' | null>(null)
+    const [diasModal, setDiasModal] = useState(false)
     const [formHours, setFormHours] = useState('')
+    const [formDays, setFormDays] = useState('')
     const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0])
     const [formNotes, setFormNotes] = useState('')
     const [submitting, setSubmitting] = useState(false)
@@ -241,32 +244,15 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
         currentPlanDef = undefined
     }
 
-    // ── Progreso por tiempo (planes en días/meses, ej. "1 mes") ─────────
-    // Para planes con timeUnit 'days'/'months' la barra refleja el tiempo
-    // transcurrido desde la asignación, no las horas consumidas.
-    const MS_PER_DAY = 86_400_000
+    // ── Progreso manual por tiempo (planes en días/meses) ─────────────────
     let timeProgress: { elapsedDays: number; totalDays: number; remainingDays: number; pct: number; durationLabel: string } | null = null
     if (hasActiveAssignment && currentPlanDef?.timeValue && currentPlanDef.timeUnit && currentPlanDef.timeUnit !== 'hours') {
-        const start = new Date(assignment!.assignedAt)
-        const end = assignment!.expiresAt
-            ? new Date(assignment!.expiresAt)
-            : new Date(start)
-        if (!assignment!.expiresAt) {
-            if (currentPlanDef.timeUnit === 'months') {
-                end.setMonth(end.getMonth() + currentPlanDef.timeValue)
-            } else {
-                end.setDate(end.getDate() + currentPlanDef.timeValue)
-            }
-        }
-        const totalMs = end.getTime() - start.getTime()
-        const elapsedMs = Date.now() - start.getTime()
-        const totalDays = Math.max(1, Math.round(totalMs / MS_PER_DAY))
-        const elapsedDays = Math.min(totalDays, Math.max(0, Math.floor(elapsedMs / MS_PER_DAY)))
+        const totalDays = assignment!.totalDays ?? (currentPlanDef.timeUnit === 'days' ? currentPlanDef.timeValue : currentPlanDef.timeValue * 30)
+        const elapsedDays = Math.min(totalDays, Math.max(0, assignment!.progressedDays ?? 0))
         timeProgress = {
             elapsedDays,
             totalDays,
             remainingDays: Math.max(0, totalDays - elapsedDays),
-            // Los planes mensuales avanzan en pasos de un día, no por horas consumidas.
             pct: totalDays > 0 ? Math.min(100, Math.max(0, Math.round((elapsedDays / totalDays) * 100))) : 0,
             durationLabel: formatPlanTime({ totalHours: currentTotalHours, timeValue: currentPlanDef.timeValue, timeUnit: currentPlanDef.timeUnit }),
         }
@@ -311,6 +297,13 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
         setTopicSearch('')
         setTopicSearchResults([])
         setSelectedTopics([])
+    }
+
+    function openDiasModal() {
+        setDiasModal(true)
+        setFormDays('')
+        setFormNotes('')
+        setFormError('')
     }
 
     function handleTopicSearch() {
@@ -383,6 +376,27 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
             const profile = await adminGetUserProfile(token, adminUserId!)
             setUserProfile(profile)
             setHorasModal(null)
+        } catch (err) {
+            setFormError((err as Error).message)
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    async function handleProgressDays(e: React.FormEvent) {
+        e.preventDefault()
+        if (!adminUserId || !assignment?._id) return
+        const days = Number(formDays)
+        if (!Number.isInteger(days) || days <= 0) {
+            setFormError('Ingresa una cantidad entera de días mayor que 0')
+            return
+        }
+        setSubmitting(true)
+        setFormError('')
+        try {
+            const result = await adminProgressPlanDays(token, adminUserId, assignment._id, days, formNotes.trim() || undefined)
+            setUserProfile((prev) => prev ? { ...prev, currentAssignment: result.assignment } : prev)
+            setDiasModal(false)
         } catch (err) {
             setFormError((err as Error).message)
         } finally {
@@ -678,8 +692,7 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                         <p className="font-primary text-[.72rem] text-[rgba(255,210,210,.4)] mt-0.5">
                                             {currentPlanName}
                                             {currentPlanDef && ` · ${formatPlanTime({ totalHours: currentTotalHours, timeValue: currentPlanDef.timeValue ?? null, timeUnit: currentPlanDef.timeUnit ?? 'hours' })} en total`}
-                                            {timeProgress && ` · ${currentUsedHours}h consumidas`}
-                                            {currentAdditionalHours > 0 && (
+                                            {!timeProgress && currentAdditionalHours > 0 && (
                                                 <span className="text-blue-400 font-semibold"> + {currentAdditionalHours} hrs adicionales</span>
                                             )}
                                         </p>
@@ -691,16 +704,28 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                     {/* Admin action buttons — only visible when admin has selected a user */}
                                     {isAdmin && adminUserId && (
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={() => openHorasModal('complete')}
-                                                className="flex items-center gap-1.5 font-primary text-[.6rem] font-bold uppercase tracking-[1px] px-2.5 py-1 rounded-lg bg-green-600/20 border border-green-500/30 text-green-400 hover:bg-green-600/35 transition-colors"
-                                            >
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                                Completar
-                                            </button>
+                                            {timeProgress ? (
+                                                <button
+                                                    onClick={openDiasModal}
+                                                    className="flex items-center gap-1.5 font-primary text-[.6rem] font-bold uppercase tracking-[1px] px-2.5 py-1 rounded-lg bg-green-600/20 border border-green-500/30 text-green-400 hover:bg-green-600/35 transition-colors"
+                                                >
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                                    Registrar días
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => openHorasModal('complete')}
+                                                    className="flex items-center gap-1.5 font-primary text-[.6rem] font-bold uppercase tracking-[1px] px-2.5 py-1 rounded-lg bg-green-600/20 border border-green-500/30 text-green-400 hover:bg-green-600/35 transition-colors"
+                                                >
+                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                                    Completar
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => openHorasModal('add')}
-                                                className="flex items-center gap-1.5 font-primary text-[.6rem] font-bold uppercase tracking-[1px] px-2.5 py-1 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/35 transition-colors"
+                                                disabled={Boolean(timeProgress)}
+                                                title={timeProgress ? 'Las horas se gestionan con el plan por tiempo' : undefined}
+                                                className={`flex items-center gap-1.5 font-primary text-[.6rem] font-bold uppercase tracking-[1px] px-2.5 py-1 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 transition-colors ${timeProgress ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-600/35'}`}
                                             >
                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                                                 Adicionar hrs
@@ -732,7 +757,7 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                             { label: 'Transcurridos', value: `${timeProgress.elapsedDays} ${timeProgress.elapsedDays === 1 ? 'día' : 'días'}`, cls: 'text-rose-400' },
                                             { label: 'Restantes', value: `${timeProgress.remainingDays} ${timeProgress.remainingDays === 1 ? 'día' : 'días'}`, cls: 'text-[rgba(255,210,210,.6)]' },
                                             { label: 'Duración', value: timeProgress.durationLabel, cls: 'text-red-400' },
-                                            { label: 'Adicionales', value: `${currentAdditionalHours} hrs`, cls: 'text-blue-400' },
+                                             { label: 'Horas incluidas', value: `${currentTotalHours} hrs`, cls: 'text-blue-400' },
                                         ] : [
                                             { label: 'Completadas', value: `${currentUsedHours} hrs`, cls: 'text-rose-400' },
                                             { label: 'Restantes', value: `${currentRemainingHours} hrs`, cls: 'text-[rgba(255,210,210,.6)]' },
@@ -745,6 +770,21 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                             </div>
                                         ))}
                                     </div>
+                                    {timeProgress && (assignment?.dayProgressEntries?.length ?? 0) > 0 && (
+                                        <div className="mt-4 border-t border-red-800/15 pt-3">
+                                            <p className="font-primary text-[.62rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.4)] mb-2">Historial de días</p>
+                                            <div className="flex flex-col gap-1.5 max-h-28 overflow-y-auto">
+                                                {[...(assignment?.dayProgressEntries ?? [])].reverse().map((entry, index) => (
+                                                    <div key={`${entry.addedAt}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-red-950/25 px-3 py-2">
+                                                        <span className="font-primary text-[.72rem] text-[rgba(255,210,210,.65)]">{entry.days} {entry.days === 1 ? 'día' : 'días'}</span>
+                                                        <span className="font-primary text-[.65rem] text-[rgba(255,210,210,.35)]">
+                                                            {new Date(entry.addedAt).toLocaleDateString('es-MX')}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </>
                             ) : (
                                 <p className="font-primary text-[.78rem] text-[rgba(255,210,210,.3)] py-4 text-center">
@@ -1291,6 +1331,55 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                             className="w-full font-primary text-[.8rem] font-bold uppercase tracking-[2px] py-3 rounded-xl bg-blue-600/25 border border-blue-500/40 text-blue-400 hover:bg-blue-600/40 transition-colors disabled:opacity-50"
                         >
                             {submitting ? 'Guardando...' : 'Adicionar horas'}
+                        </button>
+                    </form>
+                </div>
+            )}
+
+            {/* ── Modal: Registrar días ────────────────────────────────── */}
+            {diasModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setDiasModal(false)}>
+                    <form
+                        onClick={(e) => e.stopPropagation()}
+                        onSubmit={handleProgressDays}
+                        className="w-full max-w-sm bg-[#1a0a0a] border border-red-800/30 rounded-2xl p-6 flex flex-col gap-5 shadow-xl"
+                    >
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-serif text-lg font-bold uppercase text-[#fff0f0]">Registrar días</h3>
+                            <button type="button" onClick={() => setDiasModal(false)} className="text-[rgba(255,210,210,.4)] hover:text-rose-400 leading-none text-xl">&times;</button>
+                        </div>
+                        <p className="font-primary text-[.75rem] text-[rgba(255,210,210,.5)]">
+                            Progreso actual: <span className="text-rose-400 font-bold">{timeProgress?.elapsedDays ?? 0} / {timeProgress?.totalDays ?? 0} días</span>
+                        </p>
+                        <label className="flex flex-col gap-1.5">
+                            <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Días a registrar</span>
+                            <input
+                                type="number" step="1" min="1" required
+                                value={formDays} onChange={(e) => setFormDays(e.target.value)}
+                                placeholder="Ej: 3"
+                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-red-500/50"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between">
+                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Notas <span className="normal-case tracking-normal text-[rgba(255,210,210,.3)]">(opcional)</span></span>
+                                <span className="font-primary text-[.6rem] text-[rgba(255,210,210,.3)]">{formNotes.length}/300</span>
+                            </div>
+                            <textarea
+                                maxLength={300}
+                                rows={3}
+                                value={formNotes}
+                                onChange={(e) => setFormNotes(e.target.value)}
+                                placeholder="Observaciones sobre el progreso..."
+                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-red-500/50 resize-none"
+                            />
+                        </label>
+                        {formError && <p className="font-primary text-[.75rem] text-rose-400">{formError}</p>}
+                        <button
+                            type="submit" disabled={submitting}
+                            className="w-full font-primary text-[.8rem] font-bold uppercase tracking-[2px] py-3 rounded-xl bg-green-600/25 border border-green-500/40 text-green-400 hover:bg-green-600/40 transition-colors disabled:opacity-50"
+                        >
+                            {submitting ? 'Guardando...' : 'Guardar progreso'}
                         </button>
                     </form>
                 </div>

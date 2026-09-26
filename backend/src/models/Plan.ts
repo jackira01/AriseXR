@@ -41,7 +41,7 @@ const PlanSchema = new Schema<IPlan>(
         price: { type: Number, required: true, default: 0 },
         currency: { type: String, default: 'USD' },
         totalHours: { type: Number, required: true, default: 0 },
-        // Tiempo a mostrar en UI (el consumo interno sigue siendo por horas).
+        // Duración del plan para el seguimiento manual por días/meses.
         // Si timeValue es null y timeUnit es 'hours', se muestra totalHours.
         timeValue: { type: Number, default: null },
         timeUnit: { type: String, enum: ['hours', 'days', 'months'], default: 'hours' },

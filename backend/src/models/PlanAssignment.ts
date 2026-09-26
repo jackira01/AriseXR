@@ -5,6 +5,12 @@ export type PlanAssignmentStatus = 'active' | 'archived' | 'expired'
 export type PlanAssignmentSource = 'stripe' | 'admin' | 'manual' | 'legacy'
 export type PlanAssignmentTrackingMode = 'hours' | 'time'
 
+export interface IPlanDayProgressEntry {
+    days: number
+    notes?: string
+    addedAt: Date
+}
+
 export interface IPlanAssignment extends Document {
     userId: mongoose.Types.ObjectId
     planId?: mongoose.Types.ObjectId | null
@@ -15,6 +21,10 @@ export interface IPlanAssignment extends Document {
     status: PlanAssignmentStatus
     source: PlanAssignmentSource
     trackingMode?: PlanAssignmentTrackingMode
+    totalDays?: number
+    progressedDays?: number
+    remainingDays?: number
+    dayProgressEntries?: IPlanDayProgressEntry[]
     notes?: string
     invoiceId?: string | null
     assignedAt: Date
@@ -59,6 +69,17 @@ const PlanAssignmentSchema = new Schema<IPlanAssignment>(
             type: String,
             enum: ['hours', 'time'],
             default: 'hours',
+        },
+        totalDays: { type: Number, default: 0 },
+        progressedDays: { type: Number, default: 0, min: 0 },
+        remainingDays: { type: Number, default: 0, min: 0 },
+        dayProgressEntries: {
+            type: [{
+                days: { type: Number, required: true, min: 1 },
+                notes: { type: String, trim: true, maxlength: 300 },
+                addedAt: { type: Date, default: Date.now },
+            }],
+            default: [],
         },
         notes: { type: String, default: '' },
         invoiceId: { type: String, default: null },
