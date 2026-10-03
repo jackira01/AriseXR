@@ -111,7 +111,7 @@ export default function AboutCoach() {
                             {/* Video Google Drive */}
                             <div className="mt-8">
                                 <iframe
-                                    src="https://drive.google.com/file/d/1HploSJojtTat6kOYFuic9n7iUeXK-jBL/view"
+                                    src="https://drive.google.com/file/d/1HploSJojtTat6kOYFuic9n7iUeXK-jBL/preview"
                                     className="w-full h-96 rounded-2xl border border-red-800/20"
                                     allow="autoplay; encrypted-media"
                                     allowFullScreen
@@ -143,10 +143,11 @@ export default function AboutCoach() {
                             allow="autoplay; encrypted-media"
                             allowFullScreen
                         ></iframe>
-
                     </div>
                 </div>
             </div>
         </section>
     )
 }
+
+                    
