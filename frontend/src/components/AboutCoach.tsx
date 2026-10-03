@@ -87,27 +87,36 @@ export default function AboutCoach() {
                         </div>
                     </div>
 
-                    {/* Right: Images Grid */}
-                    <div className="grid grid-cols-2 gap-4">
-                        {[
-                            { src: '/image.png', alt: 'Prueba 1' },
-                            { src: '/image2.png', alt: 'Prueba 2' },
-                            { src: '/image3.png', alt: 'Prueba 3' },
-                            { src: '/image4.png', alt: 'Prueba 4' },
-                        ].map((img, idx) => (
-                            <div
-                                key={idx}
-                                className="relative aspect-square rounded-xl overflow-hidden border border-red-800/20 hover:border-red-700/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(180,20,20,.25)] group"
-                            >
-                                <img
-                                    src={img.src}
-                                    alt={img.alt}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+{/* Right: Images Grid */}
+                            <div className="grid grid-cols-2 gap-4">
+                                {[
+                                    { src: '/image.png', alt: 'Prueba 1' },
+                                    { src: '/image2.png', alt: 'Prueba 2' },
+                                    { src: '/image3.png', alt: 'Prueba 3' },
+                                    { src: '/image4.png', alt: 'Prueba 4' },
+                                ].map((img, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="relative aspect-square rounded-xl overflow-hidden border border-red-800/20 hover:border-red-700/40 transition-all duration-300 hover:shadow-[0_0_30px_rgba(180,20,20,.25)] group"
+                                    >
+                                        <img
+                                            src={img.src}
+                                            alt={img.alt}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                            {/* Video Google Drive */}
+                            <div className="mt-8">
+                                <iframe
+                                    src="https://drive.google.com/file/d/1HploSJojtTat6kOYFuic9n7iUeXK-jBL/view"
+                                    className="w-full h-96 rounded-2xl border border-red-800/20"
+                                    allow="autoplay; encrypted-media"
+                                    allowFullScreen
+                                ></iframe>
+                            </div>
                 </div>
 
                 {/* CTA */}
