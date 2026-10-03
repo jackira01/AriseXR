@@ -5,7 +5,7 @@ import { Invoice } from '../models/Invoice.js'
 import { Topic } from '../models/Topic.js'
 import { Category } from '../models/Category.js'
 import { PlanAssignment } from '../models/PlanAssignment.js'
-import { assignPlanToUser, updateAssignment, adjustAssignmentHours, progressAssignmentDays, getCurrentActiveAssignment } from '../lib/planLifecycle.js'
+import { assignPlanToUser, updateAssignment, adjustAssignmentHours, progressAssignmentDays, adjustAssignmentDays, getCurrentActiveAssignment } from '../lib/planLifecycle.js'
 import type { PlanSlug } from '../models/Plan.js'
 
 const router = Router()
@@ -387,9 +387,13 @@ router.patch('/users/:userId/plan-assignments/:assignmentId/adjust-hours', authM
 router.patch('/users/:userId/plan-assignments/:assignmentId/progress-days', authMiddleware, async (req: AuthRequest, res: Response) => {
     if (!requireAdmin(req, res)) return
     try {
-        const { days, notes } = req.body as { days?: number; notes?: string }
+        const { days, topic, notes, date } = req.body as { days?: number; topic?: string; notes?: string; date?: string }
         if (!Number.isInteger(days) || (days as number) <= 0) {
             res.status(400).json({ message: 'Los días deben ser un número entero mayor que 0' })
+            return
+        }
+        if (!topic?.trim()) {
+            res.status(400).json({ message: 'El tema es requerido' })
             return
         }
 
@@ -397,9 +401,43 @@ router.patch('/users/:userId/plan-assignments/:assignmentId/progress-days', auth
         const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
         const assignment = await progressAssignmentDays({ assignmentId, userId, days: days as number, notes })
 
-        res.json({ assignment })
+        const user = await User.findById(userId)
+        if (user) {
+            const newSession = {
+                date: date ?? new Date().toISOString().split('T')[0],
+                hours: days as number,
+                topic: topic.trim(),
+                notes: notes?.trim(),
+                addedAt: new Date(),
+            }
+            user.sessions.push(newSession)
+            await user.save()
+        }
+
+        res.json({
+            assignment,
+            sessions: user ? user.sessions : [],
+        })
     } catch (err) {
         res.status(400).json({ message: (err as Error).message ?? 'No se pudieron registrar los días' })
+    }
+})
+
+// PATCH /api/admin/users/:userId/plan-assignments/:assignmentId/adjust-days — adicionar días base
+router.patch('/users/:userId/plan-assignments/:assignmentId/adjust-days', authMiddleware, async (req: AuthRequest, res: Response) => {
+    if (!requireAdmin(req, res)) return
+    try {
+        const { daysDelta } = req.body as { daysDelta: number }
+        if (daysDelta === undefined || isNaN(daysDelta) || daysDelta === 0) {
+            res.status(400).json({ message: 'daysDelta es requerido y debe ser distinto de 0' })
+            return
+        }
+        const assignmentId = Array.isArray(req.params.assignmentId) ? req.params.assignmentId[0] : req.params.assignmentId
+        const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+        const assignment = await adjustAssignmentDays({ assignmentId, userId, daysDelta })
+        res.json({ assignment })
+    } catch (err) {
+        res.status(400).json({ message: (err as Error).message ?? 'Error al ajustar días' })
     }
 })
 

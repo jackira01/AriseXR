@@ -8,7 +8,7 @@ const DEFAULT_HOURS_BY_PLAN: Record<PlanSlug, number> = {
     gold: 8,
     esmerald: 12,
     diamond: 20,
-    no_life: 40,
+    no_life: 0,
     challenger: 60,
 }
 
@@ -167,6 +167,32 @@ export async function updateAssignment({
     }
     if (notes !== undefined) assignment.notes = notes
     if (status !== undefined) assignment.status = status
+
+    await assignment.save()
+    return assignment
+}
+
+export async function adjustAssignmentDays({
+    assignmentId,
+    userId,
+    daysDelta,
+}: {
+    assignmentId: string
+    userId: string
+    daysDelta: number
+}) {
+    const assignment = await PlanAssignment.findOne({ _id: assignmentId, userId })
+    if (!assignment) throw new Error('Asignación no encontrada')
+    if (assignment.trackingMode !== 'time') throw new Error('La asignación no es un plan por tiempo')
+    if (!Number.isInteger(daysDelta) || daysDelta === 0) throw new Error('Los días a adicionar deben ser un número entero distinto de 0')
+
+    const currentTotalDays = assignment.totalDays ?? 0
+    const newTotalDays = Math.max(1, currentTotalDays + daysDelta)
+    assignment.totalDays = newTotalDays
+    assignment.remainingDays = Math.max(0, newTotalDays - (assignment.progressedDays ?? 0))
+    if (assignment.expiresAt) {
+        assignment.expiresAt = new Date(assignment.expiresAt.getTime() + daysDelta * 86_400_000)
+    }
 
     await assignment.save()
     return assignment

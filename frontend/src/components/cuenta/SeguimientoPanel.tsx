@@ -22,6 +22,7 @@ import {
     adminGetUserTools,
     adminUpdateToolStatus,
     adminAddToolToUser,
+    adminAdjustAssignmentDays,
     type CatalogCategory,
     type UserProfile,
     type UserSession,
@@ -108,8 +109,10 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
     // ── Horas modals ──────────────────────────────────────────────────────
     const [horasModal, setHorasModal] = useState<'complete' | 'add' | null>(null)
     const [diasModal, setDiasModal] = useState(false)
+    const [adicionarDiasModal, setAdicionarDiasModal] = useState(false)
     const [formHours, setFormHours] = useState('')
     const [formDays, setFormDays] = useState('')
+    const [formDaysDelta, setFormDaysDelta] = useState('')
     const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0])
     const [formNotes, setFormNotes] = useState('')
     const [submitting, setSubmitting] = useState(false)
@@ -303,6 +306,16 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
         setDiasModal(true)
         setFormDays('')
         setFormNotes('')
+        setFormDate(new Date().toISOString().split('T')[0])
+        setFormError('')
+        setTopicSearch('')
+        setTopicSearchResults([])
+        setSelectedTopics([])
+    }
+
+    function openAdicionarDiasModal() {
+        setAdicionarDiasModal(true)
+        setFormDaysDelta('')
         setFormError('')
     }
 
@@ -391,12 +404,44 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
             setFormError('Ingresa una cantidad entera de días mayor que 0')
             return
         }
+        if (selectedTopics.length === 0) {
+            setFormError('Agrega al menos un tema')
+            return
+        }
         setSubmitting(true)
         setFormError('')
         try {
-            const result = await adminProgressPlanDays(token, adminUserId, assignment._id, days, formNotes.trim() || undefined)
+            const combinedTopic = selectedTopics.join(', ')
+            const result = await adminProgressPlanDays(token, adminUserId, assignment._id, {
+                days,
+                topic: combinedTopic,
+                notes: formNotes.trim() || undefined,
+                date: formDate,
+            })
             setUserProfile((prev) => prev ? { ...prev, currentAssignment: result.assignment } : prev)
+            setUserSessions(result.sessions)
             setDiasModal(false)
+        } catch (err) {
+            setFormError((err as Error).message)
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    async function handleAdjustAssignmentDays(e: React.FormEvent) {
+        e.preventDefault()
+        if (!adminUserId || !assignment?._id) return
+        const daysDelta = parseInt(formDaysDelta, 10)
+        if (isNaN(daysDelta) || daysDelta === 0) {
+            setFormError('Ingresa una cantidad de días válida distinta de 0')
+            return
+        }
+        setSubmitting(true)
+        setFormError('')
+        try {
+            const result = await adminAdjustAssignmentDays(token, adminUserId, assignment._id, daysDelta)
+            setUserProfile((prev) => prev ? { ...prev, currentAssignment: result.assignment } : prev)
+            setAdicionarDiasModal(false)
         } catch (err) {
             setFormError((err as Error).message)
         } finally {
@@ -721,15 +766,13 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                                     Completar
                                                 </button>
                                             )}
-                                            <button
-                                                onClick={() => openHorasModal('add')}
-                                                disabled={Boolean(timeProgress)}
-                                                title={timeProgress ? 'Las horas se gestionan con el plan por tiempo' : undefined}
-                                                className={`flex items-center gap-1.5 font-primary text-[.6rem] font-bold uppercase tracking-[1px] px-2.5 py-1 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 transition-colors ${timeProgress ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-600/35'}`}
-                                            >
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                                                Adicionar hrs
-                                            </button>
+                                             <button
+                                                 onClick={timeProgress ? openAdicionarDiasModal : () => openHorasModal('add')}
+                                                 className="flex items-center gap-1.5 font-primary text-[.6rem] font-bold uppercase tracking-[1px] px-2.5 py-1 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-400 hover:bg-blue-600/35 transition-colors"
+                                             >
+                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                                 {timeProgress ? 'Adicionar días' : 'Adicionar hrs'}
+                                             </button>
                                         </div>
                                     )}
                                     {hasActiveAssignment && (
@@ -770,22 +813,7 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                                             </div>
                                         ))}
                                     </div>
-                                    {timeProgress && (assignment?.dayProgressEntries?.length ?? 0) > 0 && (
-                                        <div className="mt-4 border-t border-red-800/15 pt-3">
-                                            <p className="font-primary text-[.62rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.4)] mb-2">Historial de días</p>
-                                            <div className="flex flex-col gap-1.5 max-h-28 overflow-y-auto">
-                                                {[...(assignment?.dayProgressEntries ?? [])].reverse().map((entry, index) => (
-                                                    <div key={`${entry.addedAt}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-red-950/25 px-3 py-2">
-                                                        <span className="font-primary text-[.72rem] text-[rgba(255,210,210,.65)]">{entry.days} {entry.days === 1 ? 'día' : 'días'}</span>
-                                                        <span className="font-primary text-[.65rem] text-[rgba(255,210,210,.35)]">
-                                                            {new Date(entry.addedAt).toLocaleDateString('es-MX')}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
+</>
                             ) : (
                                 <p className="font-primary text-[.78rem] text-[rgba(255,210,210,.3)] py-4 text-center">
                                     Asigna un paquete desde la sección Paquetes para ver el progreso aquí
@@ -1342,44 +1370,163 @@ export default function SeguimientoPanel({ adminUserId, selectedUserName, select
                     <form
                         onClick={(e) => e.stopPropagation()}
                         onSubmit={handleProgressDays}
-                        className="w-full max-w-sm bg-[#1a0a0a] border border-red-800/30 rounded-2xl p-6 flex flex-col gap-5 shadow-xl"
+                        className="w-full max-w-lg bg-[#1a0a0a] border border-red-800/30 rounded-2xl p-6 flex flex-col gap-5 shadow-xl max-h-[90vh] overflow-y-auto"
                     >
                         <div className="flex items-center justify-between">
-                            <h3 className="font-serif text-lg font-bold uppercase text-[#fff0f0]">Registrar días</h3>
+                            <h3 className="font-serif text-lg font-bold uppercase text-[#fff0f0]">Registrar días y sesión</h3>
                             <button type="button" onClick={() => setDiasModal(false)} className="text-[rgba(255,210,210,.4)] hover:text-rose-400 leading-none text-xl">&times;</button>
                         </div>
                         <p className="font-primary text-[.75rem] text-[rgba(255,210,210,.5)]">
                             Progreso actual: <span className="text-rose-400 font-bold">{timeProgress?.elapsedDays ?? 0} / {timeProgress?.totalDays ?? 0} días</span>
                         </p>
-                        <label className="flex flex-col gap-1.5">
-                            <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Días a registrar</span>
-                            <input
-                                type="number" step="1" min="1" required
-                                value={formDays} onChange={(e) => setFormDays(e.target.value)}
-                                placeholder="Ej: 3"
-                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-red-500/50"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between">
-                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Notas <span className="normal-case tracking-normal text-[rgba(255,210,210,.3)]">(opcional)</span></span>
-                                <span className="font-primary text-[.6rem] text-[rgba(255,210,210,.3)]">{formNotes.length}/300</span>
+                        <div className="flex flex-col gap-4">
+                            <label className="flex flex-col gap-1.5">
+                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Días a registrar</span>
+                                <input
+                                    type="number" step="1" min="1" required
+                                    value={formDays} onChange={(e) => setFormDays(e.target.value)}
+                                    placeholder="Ej: 3"
+                                    className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-red-500/50"
+                                />
+                            </label>
+
+                            {/* Topic search */}
+                            <div className="flex flex-col gap-1.5">
+                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Temas de la sesión</span>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={topicSearch}
+                                        onChange={(e) => setTopicSearch(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleTopicSearch() } }}
+                                        placeholder="Buscar tema por nombre..."
+                                        className="flex-1 bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-red-500/50"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleTopicSearch}
+                                        className="shrink-0 px-3 py-2.5 rounded-xl bg-red-800/30 border border-red-700/30 text-[rgba(255,210,210,.6)] hover:text-rose-400 hover:border-red-500/40 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
+                                    </button>
+                                </div>
+
+                                {/* Search results */}
+                                {topicSearchResults.length > 0 && (
+                                    <div className="bg-[#1a0808] border border-red-800/35 rounded-xl overflow-hidden max-h-44 overflow-y-auto">
+                                        {topicSearchResults.map((t) => (
+                                            <button
+                                                key={t.name}
+                                                type="button"
+                                                onClick={() => addTopic(t.name)}
+                                                disabled={selectedTopics.includes(t.name)}
+                                                className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors border-b border-red-800/20 last:border-0 ${selectedTopics.includes(t.name)
+                                                    ? 'opacity-40 cursor-not-allowed'
+                                                    : 'hover:bg-red-900/25'
+                                                    }`}
+                                            >
+                                                <div>
+                                                    <p className="font-primary text-[.78rem] text-[rgba(255,210,210,.85)]">{t.name}</p>
+                                                    <p className="font-primary text-[.65rem] text-[rgba(255,210,210,.35)]">{t.category}</p>
+                                                </div>
+                                                {!selectedTopics.includes(t.name) && (
+                                                    <svg className="w-4 h-4 text-rose-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {topicSearchResults.length === 0 && topicSearch.trim() && (
+                                    <p className="font-primary text-[.7rem] text-[rgba(255,210,210,.35)] text-center py-1">Sin resultados para &ldquo;{topicSearch}&rdquo;</p>
+                                )}
+
+                                {/* Selected topics */}
+                                {selectedTopics.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-1">
+                                        {selectedTopics.map((name) => (
+                                            <span
+                                                key={name}
+                                                className="flex items-center gap-1.5 font-primary text-[.68rem] px-2.5 py-1 rounded-lg bg-rose-900/30 border border-rose-700/35 text-rose-300"
+                                            >
+                                                {name}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeTopic(name)}
+                                                    className="text-rose-400/60 hover:text-rose-300 leading-none ml-0.5"
+                                                >
+                                                    &times;
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                            <textarea
-                                maxLength={300}
-                                rows={3}
-                                value={formNotes}
-                                onChange={(e) => setFormNotes(e.target.value)}
-                                placeholder="Observaciones sobre el progreso..."
-                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-red-500/50 resize-none"
-                            />
-                        </label>
+
+                            <label className="flex flex-col gap-1.5">
+                                <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Fecha</span>
+                                <input
+                                    type="date" required
+                                    value={formDate} onChange={(e) => setFormDate(e.target.value)}
+                                    className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] focus:outline-none focus:border-red-500/50"
+                                />
+                            </label>
+
+                            <label className="flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between">
+                                    <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Notas <span className="normal-case tracking-normal text-[rgba(255,210,210,.3)]">(opcional)</span></span>
+                                    <span className="font-primary text-[.6rem] text-[rgba(255,210,210,.3)]">{formNotes.length}/300</span>
+                                </div>
+                                <textarea
+                                    maxLength={300}
+                                    rows={3}
+                                    value={formNotes}
+                                    onChange={(e) => setFormNotes(e.target.value)}
+                                    placeholder="Observaciones sobre la sesión..."
+                                    className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-red-500/50 resize-none"
+                                />
+                            </label>
+                        </div>
                         {formError && <p className="font-primary text-[.75rem] text-rose-400">{formError}</p>}
                         <button
                             type="submit" disabled={submitting}
                             className="w-full font-primary text-[.8rem] font-bold uppercase tracking-[2px] py-3 rounded-xl bg-green-600/25 border border-green-500/40 text-green-400 hover:bg-green-600/40 transition-colors disabled:opacity-50"
                         >
-                            {submitting ? 'Guardando...' : 'Guardar progreso'}
+                            {submitting ? 'Guardando...' : 'Guardar sesión y días'}
+                        </button>
+                    </form>
+                </div>
+            )}
+
+            {/* ── Modal: Adicionar días ────────────────────────────────── */}
+            {adicionarDiasModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setAdicionarDiasModal(false)}>
+                    <form
+                        onClick={(e) => e.stopPropagation()}
+                        onSubmit={handleAdjustAssignmentDays}
+                        className="w-full max-w-sm bg-[#1a0a0a] border border-blue-800/30 rounded-2xl p-6 flex flex-col gap-5 shadow-xl"
+                    >
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-serif text-lg font-bold uppercase text-[#fff0f0]">Adicionar días</h3>
+                            <button type="button" onClick={() => setAdicionarDiasModal(false)} className="text-[rgba(255,210,210,.4)] hover:text-rose-400 leading-none text-xl">&times;</button>
+                        </div>
+                        <p className="font-primary text-[.75rem] text-[rgba(255,210,210,.5)]">
+                            Días totales actuales: <span className="text-blue-400 font-bold">{timeProgress?.totalDays ?? 0} días</span>
+                        </p>
+                        <label className="flex flex-col gap-1.5">
+                            <span className="font-primary text-[.7rem] uppercase tracking-[1.5px] text-[rgba(255,210,210,.5)]">Días a adicionar (o restar con negativo)</span>
+                            <input
+                                type="number" step="1" required
+                                value={formDaysDelta} onChange={(e) => setFormDaysDelta(e.target.value)}
+                                placeholder="Ej: 5"
+                                className="bg-red-950/30 border border-red-800/30 rounded-xl px-4 py-2.5 font-primary text-sm text-[rgba(255,210,210,.9)] placeholder:text-[rgba(255,210,210,.25)] focus:outline-none focus:border-blue-500/50"
+                            />
+                        </label>
+                        {formError && <p className="font-primary text-[.75rem] text-rose-400">{formError}</p>}
+                        <button
+                            type="submit" disabled={submitting}
+                            className="w-full font-primary text-[.8rem] font-bold uppercase tracking-[2px] py-3 rounded-xl bg-blue-600/25 border border-blue-500/40 text-blue-400 hover:bg-blue-600/40 transition-colors disabled:opacity-50"
+                        >
+                            {submitting ? 'Guardando...' : 'Adicionar días'}
                         </button>
                     </form>
                 </div>

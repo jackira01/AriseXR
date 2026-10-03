@@ -316,19 +316,39 @@ export async function adminAddBaseHours(
 }
 
 /**
- * Admin: registrar días avanzados manualmente en un plan por tiempo.
+ * Admin: registrar días avanzados manualmente en un plan por tiempo (y registrar sesión).
  */
 export async function adminProgressPlanDays(
     token: string,
     userId: string,
     assignmentId: string,
-    days: number,
-    notes?: string
-): Promise<{ assignment: IPlanAssignment }> {
+    payload: { days: number; topic: string; notes?: string; date?: string }
+): Promise<{ assignment: IPlanAssignment; sessions: UserSession[] }> {
     const response = await fetch(`${API_BASE}/admin/users/${userId}/plan-assignments/${assignmentId}/progress-days`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ days, notes }),
+        body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { message?: string }
+        throw new Error(err.message ?? `Error ${response.status}`)
+    }
+    return response.json()
+}
+
+/**
+ * Admin: adicionar días base a un plan por tiempo.
+ */
+export async function adminAdjustAssignmentDays(
+    token: string,
+    userId: string,
+    assignmentId: string,
+    daysDelta: number
+): Promise<{ assignment: IPlanAssignment }> {
+    const response = await fetch(`${API_BASE}/admin/users/${userId}/plan-assignments/${assignmentId}/adjust-days`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ daysDelta }),
     })
     if (!response.ok) {
         const err = await response.json().catch(() => ({})) as { message?: string }
